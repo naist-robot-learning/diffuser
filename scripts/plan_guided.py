@@ -24,18 +24,33 @@ diffusion_experiment = utils.load_diffusion(
     args.loadbase, args.dataset, args.diffusion_loadpath,
     epoch=args.diffusion_epoch, seed=args.seed,
 )
-value_experiment = utils.load_diffusion(
-    args.loadbase, args.dataset, args.value_loadpath,
-    epoch=args.value_epoch, seed=args.seed,
-)
+# value_experiment = utils.load_diffusion(
+#     args.loadbase, args.dataset, args.value_loadpath,
+#     epoch=args.value_epoch, seed=args.seed,
+# )
 
 diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
 renderer = diffusion_experiment.renderer
 
+observation_dim = dataset.observation_dim
+action_dim = dataset.action_dim
+
+model_config = utils.Config(
+    args.model,
+    savepath=(args.savepath, 'model_config.pkl'),
+    horizon=args.horizon,
+    transition_dim=observation_dim + action_dim,
+    cond_dim=observation_dim,
+    #dim_mults=args.dim_mults,
+    device=args.device,
+)
+model = model_config()
+
 ## initialize value guide
-value_function = value_experiment.ema
-guide_config = utils.Config(args.guide, model=value_function, verbose=False)
+# value_function = value_experiment.ema
+#guide_config = utils.Config(args.guide, model=value_function, verbose=False)
+guide_config = utils.Config(args.guide, model=model, verbose=False)
 guide = guide_config()
 
 logger_config = utils.Config(

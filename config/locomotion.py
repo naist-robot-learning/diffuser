@@ -65,8 +65,8 @@ base = {
     },
 
     'values': {
-        'model': 'models.ValueFunction',
-        'diffusion': 'models.ValueDiffusion',
+        'model': 'models.ValueFunction', #Some NN
+        'diffusion': 'models.ValueDiffusion', # A temporalUnet
         'horizon': 32,
         'n_diffusion_steps': 20,
         'dim_mults': (1, 2, 4, 8),
@@ -108,6 +108,7 @@ base = {
     },
 
     'plan': {
+        'model': 'models.CostFn', # New Cost Fn !
         'guide': 'sampling.ValueGuide',
         'policy': 'sampling.GuidedPolicy',
         'max_episode_length': 1000,
