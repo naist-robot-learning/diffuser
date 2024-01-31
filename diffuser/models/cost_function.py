@@ -3,25 +3,25 @@ import torch.nn as nn
 import pdb
 import numpy as np
 import einops
+
 # State-Space (name/joint/parameter):
-#         - rootx     slider      position (m)
-#         - rootz     slider      position (m)
-#         - rooty     hinge       angle (rad)
-#         - bthigh    hinge       angle (rad)
-#         - bshin     hinge       angle (rad)
-#         - bfoot     hinge       angle (rad)
-#         - fthigh    hinge       angle (rad)
-#         - fshin     hinge       angle (rad)
-#         - ffoot     hinge       angle (rad)
-#         - rootx     slider      velocity (m/s)
-#         - rootz     slider      velocity (m/s)
-#         - rooty     hinge       angular velocity (rad/s)
-#         - bthigh    hinge       angular velocity (rad/s)
-#         - bshin     hinge       angular velocity (rad/s)
-#         - bfoot     hinge       angular velocity (rad/s)
-#         - fthigh    hinge       angular velocity (rad/s)
-#         - fshin     hinge       angular velocity (rad/s)
-#         - ffoot     hinge       angular velocity (rad/s)
+# 0         - rootz     slider      position (m)
+# 1         - rooty     hinge       angle (rad)
+# 2         - bthigh    hinge       angle (rad)
+# 3         - bshin     hinge       angle (rad)
+# 4         - bfoot     hinge       angle (rad)
+# 5         - fthigh    hinge       angle (rad)
+# 6         - fshin     hinge       angle (rad)
+# 7         - ffoot     hinge       angle (rad)
+# 8         - rootx     slider      velocity (m/s)
+# 9         - rootz     slider      velocity (m/s)
+#10         - rooty     hinge       angular velocity (rad/s)
+#11         - bthigh    hinge       angular velocity (rad/s)
+#12         - bshin     hinge       angular velocity (rad/s)
+#13         - bfoot     hinge       angular velocity (rad/s)
+#14         - fthigh    hinge       angular velocity (rad/s)
+#15         - fshin     hinge       angular velocity (rad/s)
+#16         - ffoot     hinge       angular velocity (rad/s)
 
 class CostFn(nn.Module):
 
@@ -36,9 +36,11 @@ class CostFn(nn.Module):
         super().__init__()
         # transition_dim = 23
         
-        self.q_cost = torch.zeros((transition_dim, horizon), requires_grad=False)
-        self.q_cost[1,:] = 0.3
-        self.q_cost[2,:] = 0.7854
+        self.q_des = torch.zeros((transition_dim, horizon), requires_grad=False)
+        #self.q_des[8,:] = 0
+        #self.q_des[2,:] = -1.5708 #0.7854/4
+        self.q_des[8,:] = 0.5 #m/s
+        #self.q_des[10,:] = 0 #rad/s
                     
 
     def forward(self, x: torch.tensor((64,4,23)), 
@@ -51,11 +53,12 @@ class CostFn(nn.Module):
         #print("shape x: ", np.shape(x))  #shape x:  torch.Size([64, 23, 4])
         #print("x: ", x)
         q = x.clone().detach()
-        q[:,1,:] = self.q_cost[1,1]
-        q[:,2,:] = self.q_cost[2,1]
-        self.q_cost = q
-        self.q_cost.requires_grad_(True).to("cuda")
-        power = (self.q_cost - x).pow(2)
+        q[:,8,:] = self.q_des[8,0]
+        #print("x[:,8,:]: ", x[:,8,:])
+        #q[:,10,:] = self.q_des[10,1]
+        self.q_des = q
+        self.q_des.requires_grad_(True).to("cuda")
+        power = (self.q_des - x).pow(2)
         squared_norm = power.sum(axis=1)
         cost = squared_norm.sum(axis=1)     
         #print("squared of norm: ", cost)

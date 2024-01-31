@@ -3,7 +3,7 @@ import pdb
 import diffuser.sampling as sampling
 import diffuser.utils as utils
 import matplotlib.pyplot as plt
-import numpy as np
+import csv
 
 
 #-----------------------------------------------------------------------------#
@@ -26,10 +26,11 @@ diffusion_experiment = utils.load_diffusion(
     args.loadbase, args.dataset, args.diffusion_loadpath,
     epoch=args.diffusion_epoch, seed=args.seed,
 )
-# value_experiment = utils.load_diffusion(
-#     args.loadbase, args.dataset, args.value_loadpath,
-#     epoch=args.value_epoch, seed=args.seed,
-# )
+
+value_experiment = utils.load_diffusion(
+    args.loadbase, args.dataset, args.value_loadpath,
+    epoch=args.value_epoch, seed=args.seed,
+)
 
 diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
@@ -50,9 +51,9 @@ model_config = utils.Config(
 model = model_config()
 
 ## initialize value guide
-# value_function = value_experiment.ema
-#guide_config = utils.Config(args.guide, model=value_function, verbose=False)
-guide_config = utils.Config(args.guide, model=model, verbose=False)
+value_function = value_experiment.ema
+guide_config = utils.Config(args.guide, model=value_function, verbose=False)
+#guide_config = utils.Config(args.guide, model=model, verbose=False)
 guide = guide_config()
 
 logger_config = utils.Config(
@@ -86,15 +87,15 @@ policy = policy_config()
 #-----------------------------------------------------------------------------#
 #--------------------------------- main loop ---------------------------------#
 #-----------------------------------------------------------------------------#
-t_s = []
-x_s = []
 
 env = dataset.env
 observation = env.reset()
 
 ## observations for rendering
 rollout = [observation.copy()]
-
+r_t = []
+x_s = []
+t_s = []
 total_reward = 0
 for t in range(args.max_episode_length+1):
 
@@ -102,7 +103,7 @@ for t in range(args.max_episode_length+1):
 
     ## save state for rendering only
     state = env.state_vector().copy()
-
+    #print("env observation space: ", env.observation_space)
     ## format current observation for conditioning
     conditions = {0: observation}
     action, samples = policy(conditions, batch_size=args.batch_size, verbose=args.verbose)
@@ -121,8 +122,8 @@ for t in range(args.max_episode_length+1):
 
     ## update rollout observations
     rollout.append(next_observation.copy())
-    #x_s.append(info["reward_run"].copy())
-    x_s.append(total_reward)
+    r_t.append(total_reward)
+    x_s.append(info["reward_run"].copy())
     t_s.append(t)
     ## render every `args.vis_freq` steps
     logger.log(t, samples, state, rollout)
@@ -132,7 +133,20 @@ for t in range(args.max_episode_length+1):
 
     observation = next_observation
     if t % 200 == 0:
-        plt.plot(t_s,x_s)
-        plt.show()
+        with open("exp_costfn_05ms.csv", 'w', newline='') as csv_file:
+            # Create a CSV writer object
+            csv_writer = csv.writer(csv_file)
+            data_dict = {
+                 'reward_run': x_s,
+                 'total_reward': r_t,
+                 'time_step':t_s,
+            }
+            # Write the list of tuples to the CSV file
+            csv_writer.writerow(data_dict.keys())  # Write header
+    
+            # Write the data row by row
+            for row in zip(*data_dict.values()):
+                csv_writer.writerow(row)
+                        
 ## write results to json file at `args.savepath`
 logger.finish(t, score, total_reward, terminal, diffusion_experiment, value_experiment)

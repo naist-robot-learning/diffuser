@@ -17,5 +17,6 @@ class ValueGuide(nn.Module):
         x.requires_grad_()
         y = self(x, *args)
         grad = torch.autograd.grad([y.sum()], [x])[0]
+        #print("grad: ", grad)
         x.detach()
         return y, grad
