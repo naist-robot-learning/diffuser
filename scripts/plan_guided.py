@@ -1,16 +1,16 @@
 import pdb
 
 import diffuser.sampling as sampling
-import diffuser.utils as utils
+import diffuser.utils as tools
 import matplotlib.pyplot as plt
 import numpy as np
-
+from tools import dict2csv
 
 #-----------------------------------------------------------------------------#
 #----------------------------------- setup -----------------------------------#
 #-----------------------------------------------------------------------------#
 
-class Parser(utils.Parser):
+class Parser(tools.Parser):
     dataset: str = 'walker2d-medium-replay-v2'
     config: str = 'config.locomotion'
 
@@ -22,7 +22,7 @@ args = Parser().parse_args('plan')
 #-----------------------------------------------------------------------------#
 
 ## load diffusion model and value function from disk
-diffusion_experiment = utils.load_diffusion(
+diffusion_experiment = tools.load_diffusion(
     args.loadbase, args.dataset, args.diffusion_loadpath,
     epoch=args.diffusion_epoch, seed=args.seed,
 )
@@ -38,7 +38,7 @@ renderer = diffusion_experiment.renderer
 observation_dim = dataset.observation_dim
 action_dim = dataset.action_dim
 
-model_config = utils.Config(
+model_config = tools.Config(
     args.model,
     savepath=(args.savepath, 'model_config.pkl'),
     horizon=args.horizon,
@@ -52,11 +52,11 @@ model = model_config()
 ## initialize value guide
 # value_function = value_experiment.ema
 #guide_config = utils.Config(args.guide, model=value_function, verbose=False)
-guide_config = utils.Config(args.guide, model=model, verbose=False)
+guide_config = tools.Config(args.guide, model=model, verbose=False)
 guide = guide_config()
 
-logger_config = utils.Config(
-    utils.Logger,
+logger_config = tools.Config(
+    tools.Logger,
     renderer=renderer,
     logpath=args.savepath,
     vis_freq=args.vis_freq,
@@ -64,7 +64,7 @@ logger_config = utils.Config(
 )
 
 ## policies are wrappers around an unconditional diffusion model and a value guide
-policy_config = utils.Config(
+policy_config = tools.Config(
     args.policy,
     guide=guide,
     scale=args.scale,
@@ -86,7 +86,7 @@ policy = policy_config()
 #-----------------------------------------------------------------------------#
 #--------------------------------- main loop ---------------------------------#
 #-----------------------------------------------------------------------------#
-t_s = []
+total_r = []
 x_s = []
 
 env = dataset.env
@@ -121,9 +121,10 @@ for t in range(args.max_episode_length+1):
 
     ## update rollout observations
     rollout.append(next_observation.copy())
-    #x_s.append(info["reward_run"].copy())
-    x_s.append(total_reward)
-    t_s.append(t)
+        
+    total_r.append(total_reward)
+    x_s.append(info["reward_run"].copy())
+    
     ## render every `args.vis_freq` steps
     logger.log(t, samples, state, rollout)
 
@@ -131,8 +132,13 @@ for t in range(args.max_episode_length+1):
         break
 
     observation = next_observation
-    if t % 200 == 0:
-        plt.plot(t_s,x_s)
-        plt.show()
+    if t % 1000 == 0:
+        data_dict = {
+            "total_reward": total_r,
+            "rollouts": rollout,
+            "x_position": x_s,
+        }
+        dict2csv(data_dict)
+        
 ## write results to json file at `args.savepath`
 logger.finish(t, score, total_reward, terminal, diffusion_experiment, value_experiment)
