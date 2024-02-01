@@ -38,7 +38,8 @@ class CostFn(nn.Module):
         
         self.q_des = torch.zeros((transition_dim, horizon), requires_grad=False)
         
-        self.q_des[8,:] = 2 #m/s                    
+        self.q_des[8,:] = 5 #m/s         
+        self.q_des.to("cuda")           
 
     def forward(self, x: torch.tensor((64,4,23)), 
                       cond: torch.tensor, 
@@ -47,13 +48,13 @@ class CostFn(nn.Module):
             x : [ batch x horizon x transition ]
         '''
         x = einops.rearrange(x, 'b h t -> b t h')
-        q = x.clone().detach()
+        q = torch.tensor(x).to("cuda")
 
-        q[:,8,:] = self.q_des[8,0]
-    
+        q[:, 8, :] = self.q_des[8, 0].expand_as(q[:, 8, :])
+       
         self.q_des = q
-        self.q_des.requires_grad_(True).to("cuda")
-        power = -(x - self.q_des).pow(2)  #must be concave(( max of concave)
+        #self.q_des.requires_grad_(True)
+        power = -(x - self.q_des).pow(2)            # max of concave
   
         squared_norm = power.sum(axis=1)
         cost = squared_norm.sum(axis=1)     
