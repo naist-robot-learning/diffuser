@@ -3,7 +3,7 @@ import pdb
 import diffuser.sampling as sampling
 import diffuser.utils as utils
 import matplotlib.pyplot as plt
-import csv
+from tools import dict2pickle
 
 
 #-----------------------------------------------------------------------------#
@@ -87,14 +87,16 @@ policy = policy_config()
 #-----------------------------------------------------------------------------#
 #--------------------------------- main loop ---------------------------------#
 #-----------------------------------------------------------------------------#
+total_r = [0] * (args.max_episode_length+1)
+x_s = [0] * (args.max_episode_length+1)
 
 env = dataset.env
 observation = env.reset()
 
 ## observations for rendering
-rollout = [observation.copy()]
+rollout = [observation.copy()]*(args.max_episode_length+1)
 r_t = []
-x_s = []
+
 t_s = []
 total_reward = 0
 for t in range(args.max_episode_length+1):
@@ -121,10 +123,12 @@ for t in range(args.max_episode_length+1):
     )
 
     ## update rollout observations
-    rollout.append(next_observation.copy())
-    r_t.append(total_reward)
-    x_s.append(info["reward_run"].copy())
-    t_s.append(t)
+    rollout[t] = next_observation.copy()
+       
+    total_r[t] = total_reward
+    print("keys:         ", info.keys())
+    x_s[t] = info["reward_run"].copy()
+    
     ## render every `args.vis_freq` steps
     logger.log(t, samples, state, rollout)
 
@@ -132,21 +136,13 @@ for t in range(args.max_episode_length+1):
         break
 
     observation = next_observation
-    if t % 200 == 0:
-        with open("exp_costfn_05ms.csv", 'w', newline='') as csv_file:
-            # Create a CSV writer object
-            csv_writer = csv.writer(csv_file)
-            data_dict = {
-                 'reward_run': x_s,
-                 'total_reward': r_t,
-                 'time_step':t_s,
-            }
-            # Write the list of tuples to the CSV file
-            csv_writer.writerow(data_dict.keys())  # Write header
-    
-            # Write the data row by row
-            for row in zip(*data_dict.values()):
-                csv_writer.writerow(row)
-                        
+    if t % 1000 == 0:
+        data_dict = {
+            "total_reward": total_r,
+            "rollouts": rollout,
+            "x_position": x_s,
+        }
+        dict2pickle(data_dict)
+        
 ## write results to json file at `args.savepath`
 logger.finish(t, score, total_reward, terminal, diffusion_experiment, value_experiment)

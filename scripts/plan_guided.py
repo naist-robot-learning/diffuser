@@ -1,16 +1,17 @@
 import pdb
 
 import diffuser.sampling as sampling
-import diffuser.utils as tools
+import diffuser.utils as utils
 import matplotlib.pyplot as plt
 import numpy as np
-from tools import dict2csv
-
+from tools import dict2pickle
+import cProfile
+from diffuser.environments.half_cheetah import HalfCheetahFullObsEnv
 #-----------------------------------------------------------------------------#
 #----------------------------------- setup -----------------------------------#
 #-----------------------------------------------------------------------------#
 
-class Parser(tools.Parser):
+class Parser(utils.Parser):
     dataset: str = 'walker2d-medium-replay-v2'
     config: str = 'config.locomotion'
 
@@ -22,14 +23,14 @@ args = Parser().parse_args('plan')
 #-----------------------------------------------------------------------------#
 
 ## load diffusion model and value function from disk
-diffusion_experiment = tools.load_diffusion(
+diffusion_experiment = utils.load_diffusion(
     args.loadbase, args.dataset, args.diffusion_loadpath,
     epoch=args.diffusion_epoch, seed=args.seed,
 )
-# value_experiment = utils.load_diffusion(
-#     args.loadbase, args.dataset, args.value_loadpath,
-#     epoch=args.value_epoch, seed=args.seed,
-# )
+value_experiment = utils.load_diffusion(
+     args.loadbase, args.dataset, args.value_loadpath,
+     epoch=args.value_epoch, seed=args.seed,
+)
 
 diffusion = diffusion_experiment.ema
 dataset = diffusion_experiment.dataset
@@ -38,7 +39,7 @@ renderer = diffusion_experiment.renderer
 observation_dim = dataset.observation_dim
 action_dim = dataset.action_dim
 
-model_config = tools.Config(
+model_config = utils.Config(
     args.model,
     savepath=(args.savepath, 'model_config.pkl'),
     horizon=args.horizon,
@@ -52,11 +53,11 @@ model = model_config()
 ## initialize value guide
 # value_function = value_experiment.ema
 #guide_config = utils.Config(args.guide, model=value_function, verbose=False)
-guide_config = tools.Config(args.guide, model=model, verbose=False)
+guide_config = utils.Config(args.guide, model=model, verbose=False)
 guide = guide_config()
 
-logger_config = tools.Config(
-    tools.Logger,
+logger_config = utils.Config(
+    utils.Logger,
     renderer=renderer,
     logpath=args.savepath,
     vis_freq=args.vis_freq,
@@ -64,7 +65,7 @@ logger_config = tools.Config(
 )
 
 ## policies are wrappers around an unconditional diffusion model and a value guide
-policy_config = tools.Config(
+policy_config = utils.Config(
     args.policy,
     guide=guide,
     scale=args.scale,
@@ -86,14 +87,14 @@ policy = policy_config()
 #-----------------------------------------------------------------------------#
 #--------------------------------- main loop ---------------------------------#
 #-----------------------------------------------------------------------------#
-total_r = []
-x_s = []
+total_r = [0] * (args.max_episode_length+1)
+x_s = [0] * (args.max_episode_length+1)
 
-env = dataset.env
+env =  dataset.env
 observation = env.reset()
 
 ## observations for rendering
-rollout = [observation.copy()]
+rollout = [observation.copy()]* (args.max_episode_length+1)
 
 total_reward = 0
 for t in range(args.max_episode_length+1):
@@ -105,8 +106,14 @@ for t in range(args.max_episode_length+1):
 
     ## format current observation for conditioning
     conditions = {0: observation}
+    # profiler = cProfile.Profile()
+    # profiler.enable()
     action, samples = policy(conditions, batch_size=args.batch_size, verbose=args.verbose)
 
+    # profiler.disable()
+    # profiler.print_stats(sort='cumulative')  # Print the profiling results
+
+    print("************hhhhhhhhhhhhhhhhhhhhhh***************")
     ## execute action in environment
     next_observation, reward, terminal, info = env.step(action)
 
@@ -120,10 +127,11 @@ for t in range(args.max_episode_length+1):
     )
 
     ## update rollout observations
-    rollout.append(next_observation.copy())
+    rollout[t] = next_observation.copy()
         
-    total_r.append(total_reward)
-    x_s.append(info["reward_run"].copy())
+    total_r[t] = total_reward
+    print("keys:         ", info.keys())
+    x_s[t] = info["reward_run"].copy()
     
     ## render every `args.vis_freq` steps
     logger.log(t, samples, state, rollout)
@@ -138,7 +146,7 @@ for t in range(args.max_episode_length+1):
             "rollouts": rollout,
             "x_position": x_s,
         }
-        dict2csv(data_dict)
+        dict2pickle(data_dict)
         
 ## write results to json file at `args.savepath`
 logger.finish(t, score, total_reward, terminal, diffusion_experiment, value_experiment)

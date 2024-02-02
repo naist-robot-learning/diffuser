@@ -1,7 +1,7 @@
 import pickle
 import numpy as np
 
-def dict2csv(data: dict):
+def dict2pickle(data: dict):
     
     # Specify the file path
     pickle_file_path = 'my_dict.pickle'
@@ -11,4 +11,13 @@ def dict2csv(data: dict):
         pickle.dump(data, pickle_file)
         
     print(f'Dictionary has been stored to {pickle_file_path}.')
+    
+def pickle2dict(filepath: str) -> dict:
+    
+    # Reading from the pickle file
+    with open(filepath, 'rb') as pickle_file:
+        loaded_dict = pickle.load(pickle_file)
+    
+    print('Loaded Dictionary:')
+    return loaded_dict
     
