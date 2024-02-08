@@ -2,6 +2,7 @@ from collections import namedtuple
 import numpy as np
 import torch
 import pdb
+import pickle
 
 from .preprocessing import get_preprocess_fn
 from .d4rl import load_environment, sequence_dataset
@@ -29,6 +30,10 @@ class SequenceDataset(torch.utils.data.Dataset):
         fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
         for i, episode in enumerate(itr):
             fields.add_path(episode)
+            if i == 1000:
+                saved_episode = pickle.dumps(episode)
+                with open('target_episode.pickle', 'wb') as file:
+                    file.write(saved_episode)                
         fields.finalize()
 
         self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields['path_lengths'])

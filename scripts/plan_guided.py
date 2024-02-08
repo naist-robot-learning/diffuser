@@ -109,11 +109,11 @@ for t in range(args.max_episode_length+1):
     # profiler = cProfile.Profile()
     # profiler.enable()
     action, samples = policy(conditions, batch_size=args.batch_size, verbose=args.verbose)
-
+    #print("action.shape: ", np.shape(action))
     # profiler.disable()
     # profiler.print_stats(sort='cumulative')  # Print the profiling results
 
-    print("************hhhhhhhhhhhhhhhhhhhhhh***************")
+    #print("************hhhhhhhhhhhhhhhhhhhhhh***************")
     ## execute action in environment
     next_observation, reward, terminal, info = env.step(action)
 
@@ -130,7 +130,7 @@ for t in range(args.max_episode_length+1):
     rollout[t] = next_observation.copy()
         
     total_r[t] = total_reward
-    print("keys:         ", info.keys())
+    #print("keys:         ", info.keys())
     x_s[t] = info["reward_run"].copy()
     
     ## render every `args.vis_freq` steps

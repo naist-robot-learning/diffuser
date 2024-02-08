@@ -122,8 +122,14 @@ class LinearAttention(nn.Module):
 #-----------------------------------------------------------------------------#
 
 def extract(a, t, x_shape):
-    b, *_ = t.shape
+    b, *_ = t.shape         ### DG: same as b = t.shape[0]
+    #print("a shape: ", np.shape(a))
+    #print("a: ", a)
+    #print("t shape: ", np.shape(t))
+    #print("t : ", t)
     out = a.gather(-1, t)
+    #print("out shape: ", np.shape(out))
+    #print("out: ", out)
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
 def cosine_beta_schedule(timesteps, s=0.008, dtype=torch.float32):

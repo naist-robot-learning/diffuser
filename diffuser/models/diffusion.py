@@ -57,6 +57,7 @@ class GaussianDiffusion(nn.Module):
         alphas = 1. - betas
         alphas_cumprod = torch.cumprod(alphas, axis=0)
         alphas_cumprod_prev = torch.cat([torch.ones(1), alphas_cumprod[:-1]])
+        print("alphas_cumprod_prev: ", alphas_cumprod_prev)
 
         self.n_timesteps = int(n_timesteps)
         self.clip_denoised = clip_denoised
