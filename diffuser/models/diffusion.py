@@ -1,3 +1,4 @@
+from collections import namedtuple
 import numpy as np
 import torch
 from torch import nn
@@ -10,6 +11,30 @@ from .helpers import (
     apply_conditioning,
     Losses,
 )
+
+Sample = namedtuple('Sample', 'trajectories values chains')
+
+@torch.no_grad()
+def default_sample_fn(model, x, cond, t):
+    model_mean, _, model_log_variance = model.p_mean_variance(x=x, cond=cond, t=t)
+    model_std = torch.exp(0.5 * model_log_variance)
+
+    # no noise when t == 0
+    noise = torch.randn_like(x)
+    noise[t == 0] = 0
+
+    values = torch.zeros(len(x), device=x.device)
+    return model_mean + model_std * noise, values
+
+def sort_by_values(x, values):
+    inds = torch.argsort(values, descending=True)
+    x = x[inds]
+    values = values[inds]
+    return x, values
+
+def make_timesteps(batch_size, i, device):
+    t = torch.full((batch_size,), i, device=device, dtype=torch.long)
+    return t
 
 class GaussianDiffusion(nn.Module):
     def __init__(self, model, horizon, observation_dim, action_dim, n_timesteps=1000,
@@ -105,15 +130,35 @@ class GaussianDiffusion(nn.Module):
             return noise
 
     def q_posterior(self, x_start, x_t, t):
+        """ Compute the mean and variance of the diffusion posterior q(x_{t-1} | x_t, x_0)
+        
+        Args:
+          x_start:         predicted x_0
+          x_t:             current denoised x at time step t
+          t:               denoising time step
+        Returns
+            moments of the q(x_{t-1} | x_t, x_0) distribution, namely mu(x_t,x_0) and sigma(x_t,x_0)
+        """
         posterior_mean = (
-            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start +
-            extract(self.posterior_mean_coef2, t, x_t.shape) * x_t
+            extract(self.posterior_mean_coef2, t, x_t.shape) * x_t +
+            extract(self.posterior_mean_coef1, t, x_t.shape) * x_start       
         )
         posterior_variance = extract(self.posterior_variance, t, x_t.shape)
         posterior_log_variance_clipped = extract(self.posterior_log_variance_clipped, t, x_t.shape)
         return posterior_mean, posterior_variance, posterior_log_variance_clipped
 
     def p_mean_variance(self, x, cond, t):
+        """ Uses noise predictor to compute x_0 from time step t, x_recon resembles x_0
+        
+        Args:
+            x:       current denoised x at time step t x_t
+            cond:    conditioning vector
+            t:       denoising time step
+
+        Returns:
+            moments of the q(x_{t-1} | x_t, x_0) distribution, namely, 
+            mu(x_t,x_0) and sigma(x_t,x_0)
+        """
         x_recon = self.predict_start_from_noise(x, t=t, noise=self.model(x, cond, t))
 
         if self.clip_denoised:
@@ -127,6 +172,17 @@ class GaussianDiffusion(nn.Module):
 
     @torch.no_grad()
     def p_sample(self, x, cond, t):
+        """ Samples x_{t-1} ~ q(x_{t-1} | x_t, x_0) using the reparametrization 
+        trick
+
+        Args:
+            x:       current denoised x at time step t x_t
+            cond:    conditioning vector
+            t:       denoising time step
+
+        Returns:
+            x_{t-1}
+        """
         b, *_, device = *x.shape, x.device
         model_mean, _, model_log_variance = self.p_mean_variance(x=x, cond=cond, t=t)
         noise = torch.randn_like(x)
@@ -135,7 +191,25 @@ class GaussianDiffusion(nn.Module):
         return model_mean + nonzero_mask * (0.5 * model_log_variance).exp() * noise
 
     @torch.no_grad()
-    def p_sample_loop(self, shape, cond, verbose=True, return_diffusion=False):
+    def p_sample_loop(self, 
+                      shape: tuple, 
+                      cond: dict, 
+                      verbose: bool=True, 
+                      return_diffusion: bool =False, 
+                      sample_fn: function=default_sample_fn,
+                      **sample_kwargs) -> namedtuple:
+        """ Computes diffusion
+
+        Args:
+            shape (tuple): (batch_size, horizon, self.transition_dim)
+            cond (dict): _description_
+            verbose (bool, optional): _description_. Defaults to True.
+            return_diffusion (bool, optional): _description_. Defaults to False.
+            sample_fn (function, optional): _description_. Defaults to default_sample_fn.
+
+        Returns:
+            namedtuple: _description_
+        """
         device = self.betas.device
 
         batch_size = shape[0]
@@ -146,23 +220,21 @@ class GaussianDiffusion(nn.Module):
 
         progress = utils.Progress(self.n_timesteps) if verbose else utils.Silent()
         for i in reversed(range(0, self.n_timesteps)):
-            timesteps = torch.full((batch_size,), i, device=device, dtype=torch.long)
-            x = self.p_sample(x, cond, timesteps)
+            t = make_timesteps(batch_size, i, device)
+            x, values = sample_fn(self, x, cond, t, **sample_kwargs)
             x = apply_conditioning(x, cond, self.action_dim)
 
-            progress.update({'t': i})
+            progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
 
             if return_diffusion: diffusion.append(x)
 
-        progress.close()
-
-        if return_diffusion:
-            return x, torch.stack(diffusion, dim=1)
-        else:
-            return x
+        progress.stamp()
+        x, values = sort_by_values(x, values)
+        if return_diffusion: diffusion = torch.stack(diffusion, dim=1)
+        return Sample(x, values, diffusion)
 
     @torch.no_grad()
-    def conditional_sample(self, cond, *args, horizon=None, **kwargs):
+    def conditional_sample(self, cond, horizon=None, **sample_kwargs):
         '''
             conditions : [ (time, state), ... ]
         '''
@@ -171,7 +243,7 @@ class GaussianDiffusion(nn.Module):
         horizon = horizon or self.horizon
         shape = (batch_size, horizon, self.transition_dim)
 
-        return self.p_sample_loop(shape, cond, *args, **kwargs)
+        return self.p_sample_loop(shape, cond, **sample_kwargs)
 
     #------------------------------------------ training ------------------------------------------#
 
