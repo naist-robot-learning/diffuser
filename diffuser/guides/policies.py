@@ -7,7 +7,7 @@ import pdb
 import diffuser.utils as utils
 # from diffusion.datasets.preprocessing import get_policy_preprocess_fn
 
-Trajectories = namedtuple('Trajectories', 'actions observations')
+Trajectories = namedtuple('Trajectories', 'actions observations values')
 # GuidedTrajectories = namedtuple('GuidedTrajectories', 'actions observations value')
 
 class Policy:
