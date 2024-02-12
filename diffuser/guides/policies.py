@@ -46,11 +46,11 @@ class Policy:
         # observation = utils.to_torch(observation_np, device=self.device)
 
         ## run reverse diffusion process
-        sample = self.diffusion_model(conditions)
-        sample = utils.to_np(sample)
+        samples = self.diffusion_model(conditions)
+        trajectories = utils.to_np(samples.trajectories)
 
         ## extract action [ batch_size x horizon x transition_dim ]
-        actions = sample[:, :, :self.action_dim]
+        actions = trajectories[:, :, :self.action_dim]
         actions = self.normalizer.unnormalize(actions, 'actions')
         # actions = np.tanh(actions)
 
@@ -58,7 +58,7 @@ class Policy:
         action = actions[0, 0]
 
         # if debug:
-        normed_observations = sample[:, :, self.action_dim:]
+        normed_observations = trajectories[:, :, self.action_dim:]
         observations = self.normalizer.unnormalize(normed_observations, 'observations')
 
         # if deltas.shape[-1] < observation.shape[-1]:
@@ -71,7 +71,7 @@ class Policy:
         # ## [ batch_size x (horizon + 1) x observation_dim ]
         # observations = np.concatenate([observation_np[:,None], next_observations], axis=1)
 
-        trajectories = Trajectories(actions, observations)
+        trajectories = Trajectories(actions, observations, samples.values)
         return action, trajectories
         # else:
         #     return action

@@ -216,7 +216,7 @@ class GaussianDiffusion(nn.Module):
         x = torch.randn(shape, device=device)
         x = apply_conditioning(x, cond, self.action_dim)
 
-        if return_diffusion: diffusion = [x]
+        diffusion = [x] if return_diffusion else None
 
         progress = utils.Progress(self.n_timesteps) if verbose else utils.Silent()
         for i in reversed(range(0, self.n_timesteps)):
