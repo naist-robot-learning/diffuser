@@ -217,10 +217,11 @@ class Trainer(object):
 
             ## [ n_samples x horizon x (action_dim + observation_dim) ]
             samples = self.ema_model.conditional_sample(conditions)
-            samples = to_np(samples)
+            trajectories = to_np(samples.trajectories)
+            #samples = to_np(samples)
 
             ## [ n_samples x horizon x observation_dim ]
-            normed_observations = samples[:, :, self.dataset.action_dim:]
+            normed_observations = trajectories[:, :, self.dataset.action_dim:]
 
             # [ 1 x 1 x observation_dim ]
             normed_conditions = to_np(batch.conditions[0])[:,None]
