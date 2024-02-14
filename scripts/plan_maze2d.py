@@ -1,7 +1,7 @@
 import json
 import numpy as np
 from os.path import join
-import pdb
+import ipdb
 
 from diffuser.guides.policies import Policy
 import diffuser.datasets as datasets
@@ -37,9 +37,12 @@ observation = env.reset()
 if args.conditional:
     print('Resetting target')
     env.set_target()
-
+goal = np.array([7,9])
+env.set_target(goal)
 ## set conditioning xy position to be the goal
-target = env._target
+#target = env._target
+target = env.get_target()
+print("target: ", target)
 cond = {
     diffusion.horizon - 1: np.array([*target, 0, 0]),
 }
@@ -54,13 +57,16 @@ for t in range(env.max_episode_steps):
 
     ## can replan if desired, but the open-loop plans are good enough for maze2d
     ## that we really only need to plan once
-    if t == 0:
+    if t % 300 == 0:
         cond[0] = observation
 
         action, samples = policy(cond, batch_size=args.batch_size)
         actions = samples.actions[0]
         sequence = samples.observations[0]
-    # pdb.set_trace()
+        fullpath = join(args.savepath, f'{t}.png')
+
+        renderer.composite(fullpath, samples.observations, ncol=1)
+    #ipdb.set_trace()
 
     # ####
     if t < len(sequence) - 1:
