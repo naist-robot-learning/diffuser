@@ -75,9 +75,19 @@ base = {
     },
 
     'plan': {
+        'model': 'models.cost_function.CostFn',              # New Cost Fn !
+        'guide': 'sampling.guides.ValueGuide',
+        'policy': 'sampling.policies.GuidedPolicy',
         'batch_size': 1,
+        'preprocess_fns': [],
         'device': 'cuda',
-
+        
+        ## sample_kwargs
+        'n_guide_steps': 2,
+        'scale': 0.1,
+        't_stopgrad': 2,
+        'scale_grad_by_std': True,
+        
         ## diffusion model
         'horizon': 256,
         'n_diffusion_steps': 256,
@@ -95,6 +105,8 @@ base = {
         ## loading
         'diffusion_loadpath': 'f:diffusion/H{horizon}_T{n_diffusion_steps}',
         'diffusion_epoch': 'latest',
+        
+        'verbose': True,
     },
 
 }
@@ -127,5 +139,7 @@ maze2d_large_v1 = {
     'plan': {
         'horizon': 384,
         'n_diffusion_steps': 256,
+        'scale': 0.001,
+        't_stopgrad': 4
     },
 }

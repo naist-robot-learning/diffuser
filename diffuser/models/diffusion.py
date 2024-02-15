@@ -224,13 +224,13 @@ class GaussianDiffusion(nn.Module):
             t = make_timesteps(batch_size, i, device)
             x, values = sample_fn(self, x, cond, t, **sample_kwargs)
             x = apply_conditioning(x, cond, self.action_dim)
-
+            #import ipdb; ipdb.set_trace()
             progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
 
             if return_diffusion: diffusion.append(x)
 
         progress.stamp()
-        x, values = sort_by_values(x, values)
+        #x, values = sort_by_values(x, values)
         if return_diffusion: diffusion = torch.stack(diffusion, dim=1)
         return Sample(x, values, diffusion)
 
