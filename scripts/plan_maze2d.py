@@ -33,7 +33,8 @@ policy = Policy(diffusion, dataset.normalizer)
 #---------------------------------- main loop ----------------------------------#
 
 observation = env.reset()
-
+start_location = np.array([1.0,2.0])
+observation = env.reset_to_location(start_location)
 if args.conditional:
     print('Resetting target')
     env.set_target()
@@ -57,7 +58,7 @@ for t in range(env.max_episode_steps):
 
     ## can replan if desired, but the open-loop plans are good enough for maze2d
     ## that we really only need to plan once
-    if t % 300 == 0:
+    if t == 0:
         cond[0] = observation
 
         action, samples = policy(cond, batch_size=args.batch_size)
