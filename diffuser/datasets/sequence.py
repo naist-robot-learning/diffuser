@@ -30,9 +30,9 @@ class SequenceDataset(torch.utils.data.Dataset):
         fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
         for i, episode in enumerate(itr):
             fields.add_path(episode)
-            if i == 1000:
+            if i == 500:
                 saved_episode = pickle.dumps(episode)
-                with open('target_episode.pickle', 'wb') as file:
+                with open(f'target_episode_{i}.pickle', 'wb') as file:
                     file.write(saved_episode)                
         fields.finalize()
 

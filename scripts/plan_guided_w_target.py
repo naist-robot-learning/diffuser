@@ -97,7 +97,7 @@ observation = env.reset()
 ## observations for rendering
 rollout = [observation.copy()] * (args.max_episode_length+1)
 ################################
-with open('target_episode.pickle', 'rb') as file:
+with open('target_episode_500.pickle', 'rb') as file:
     target_episode = pickle.load(file)
 ################################
 #print("target_episode: ", target_episode)
@@ -126,7 +126,7 @@ for t in range(args.max_episode_length):
     modified_vel[8] = 10 #m/s
     conditions = {
         0: observation,
-        7: target_vec
+        3: target_vec
         }
     
     # profiler = cProfile.Profile()

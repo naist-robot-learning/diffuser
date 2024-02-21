@@ -51,9 +51,9 @@ class CostFn(nn.Module):
         x = einops.rearrange(x, 'b h t -> b t h')
         q = torch.tensor(x).to("cuda")
         #print("x[0,:,0]", x[0,:,0])
-        q[:, 6:, 1:] = cond[3]
-        #q[:, 6:, 2] = cond[3]
-        #q[:, 6:, 3] = cond[3]
+        q[:, 6:, 1] = cond[3]
+        q[:, 6:, 2] = cond[3]
+        q[:, 6:, 3] = cond[3]
         
  
         # print("q[0, 8, 0]: ", q[0, 8, 0])
