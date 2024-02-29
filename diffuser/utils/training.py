@@ -37,7 +37,7 @@ class Trainer(object):
         self,
         diffusion_model,
         dataset,
-        renderer,
+        renderer = None,
         ema_decay=0.995,
         train_batch_size=32,
         train_lr=2e-5,
@@ -170,7 +170,8 @@ class Trainer(object):
         '''
             renders training points
         '''
-
+        if self.renderer == None:
+            return
         ## get a temporary dataloader to load a single batch
         dataloader_tmp = cycle(torch.utils.data.DataLoader(
             self.dataset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=True
@@ -202,6 +203,8 @@ class Trainer(object):
         '''
             renders samples from (ema) diffusion model
         '''
+        if self.renderer == None:
+            return
         for i in range(batch_size):
 
             ## get a single datapoint

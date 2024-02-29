@@ -17,6 +17,10 @@ ENVIRONMENT_SPECS = (
         'id': 'AntFullObs-v2',
         'entry_point': ('diffuser.environments.ant:AntFullObsEnv'),
     },
+    {
+        'id': 'CoppeliaGym-v0',
+        'entry_point': ('CoppeliaEnv4Diffuser.gymEnvironments:CoppeliaGym'),
+    },
 )
 
 def register_environments():

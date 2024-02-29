@@ -7,8 +7,8 @@ import pdb
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'maze2d-large-v1'
-    config: str = 'config.maze2d'
+    dataset: str = 'robo-v0'
+    config: str = 'config.robo'
 
 args = Parser().parse_args('diffusion')
 
@@ -27,15 +27,15 @@ dataset_config = utils.Config(
     use_padding=args.use_padding,
     max_path_length=args.max_path_length,
 )
-
-render_config = utils.Config(
-    args.renderer,
-    savepath=(args.savepath, 'render_config.pkl'),
-    env=args.dataset,
-)
+## TODO Build a renderer
+# render_config = utils.Config(
+#     args.renderer,
+#     savepath=(args.savepath, 'render_config.pkl'),
+#     env=args.dataset,
+# )
 
 dataset = dataset_config()
-renderer = render_config()
+# renderer = render_config()
 
 observation_dim = dataset.observation_dim
 action_dim = dataset.action_dim
@@ -97,7 +97,7 @@ model = model_config()
 
 diffusion = diffusion_config(model)
 
-trainer = trainer_config(diffusion, dataset, renderer)
+trainer = trainer_config(diffusion, dataset)#, renderer)
 
 
 #-----------------------------------------------------------------------------#

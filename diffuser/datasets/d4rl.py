@@ -3,6 +3,7 @@ import collections
 import numpy as np
 import gym
 import pdb
+import h5py
 
 from contextlib import (
     contextmanager,
@@ -28,20 +29,44 @@ with suppress_output():
 #-------------------------------- general api --------------------------------#
 #-----------------------------------------------------------------------------#
 
+class TerminalColors:
+    RED = '\033[91m'
+    END = '\033[0m'
+
+def print_error(message):
+    print(f"{TerminalColors.RED}{message}{TerminalColors.END}")
+
 def load_environment(name):
     if type(name) != str:
         ## name is already an environment
         return name
-    with suppress_output():
-        wrapped_env = gym.make(name)
+    
+    try:
+        with suppress_output():
+            wrapped_env = gym.make(name)
+    except Exception as e:
+            print_error(f"Error: {e}")
+            print_error("load_environment() will just return arg name")
+            return name
+            
     env = wrapped_env.unwrapped
     env.max_episode_steps = wrapped_env._max_episode_steps
     env.name = name
     return env
 
 def get_dataset(env):
-    dataset = env.get_dataset()
-
+    if type(env) != str:
+        dataset = env.get_dataset()
+    else:
+        dataset = dict(h5py.File(f'/home/ws/src/{env}.hdf5'))
+        # Extract 'infos' dictionary
+        infos_dict = dict(dataset['infos'])
+        # Remove 'infos' from the original dataset
+        del dataset['infos']
+        # Iterate through keys in 'infos' and move them to 'dataset'
+        for key in infos_dict.keys():
+            new_key = f'infos/{key}'
+            dataset[new_key] = infos_dict[key]
     if 'antmaze' in str(env).lower():
         ## the antmaze-v0 environments have a variety of bugs
         ## involving trajectory segmentation, so manually reset
@@ -67,6 +92,11 @@ def sequence_dataset(env, preprocess_fn):
             rewards
             terminals
     """
+    if type(env) != str:
+        envname = env.name
+    else:
+        envname = env
+        
     dataset = get_dataset(env)
     dataset = preprocess_fn(dataset)
 
@@ -94,7 +124,7 @@ def sequence_dataset(env, preprocess_fn):
             episode_data = {}
             for k in data_:
                 episode_data[k] = np.array(data_[k])
-            if 'maze2d' in env.name:
+            if 'maze2d' in envname:
                 episode_data = process_maze2d_episode(episode_data)
             yield episode_data
             data_ = collections.defaultdict(list)

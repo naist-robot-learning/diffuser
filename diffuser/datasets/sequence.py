@@ -22,7 +22,6 @@ class SequenceDataset(torch.utils.data.Dataset):
         self.max_path_length = max_path_length
         self.use_padding = use_padding
         itr = sequence_dataset(env, self.preprocess_fn)
-
         fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
         for i, episode in enumerate(itr):
             fields.add_path(episode)
@@ -30,7 +29,6 @@ class SequenceDataset(torch.utils.data.Dataset):
 
         self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields['path_lengths'])
         self.indices = self.make_indices(fields.path_lengths, horizon)
-
         self.observation_dim = fields.observations.shape[-1]
         self.action_dim = fields.actions.shape[-1]
         self.fields = fields
@@ -61,9 +59,15 @@ class SequenceDataset(torch.utils.data.Dataset):
             max_start = min(path_length - 1, self.max_path_length - horizon)
             if not self.use_padding:
                 max_start = min(max_start, path_length - horizon)
+                if max_start <=0:
+                    print("path_length: ", path_length)
+                    print("horizon: ", horizon)
+                    print("max_start: ", max_start)
+                    raise ValueError('The selected horizon might be larger than the path_length')
             for start in range(max_start):
                 end = start + horizon
                 indices.append((i, start, end))
+                
         indices = np.array(indices)
         return indices
 
