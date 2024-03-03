@@ -267,7 +267,7 @@ class GaussianDiffusion(nn.Module):
 
         x_recon = self.model(x_noisy, cond, t)
         x_recon = apply_conditioning(x_recon, cond, self.action_dim)
-
+        # import ipdb; ipdb.set_trace()
         assert noise.shape == x_recon.shape
 
         if self.predict_epsilon:

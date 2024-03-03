@@ -43,7 +43,7 @@ base = {
         'renderer': '',
 
         ## dataset
-        'loader': 'datasets.GoalDataset',
+        'loader': 'datasets.SequenceDataset',
         'termination_penalty': None,
         'normalizer': 'GaussianNormalizer',
         'preprocess_fns': [],               #['maze2d_set_terminals'],
@@ -57,7 +57,7 @@ base = {
         'exp_name': watch(diffusion_args_to_watch),
 
         ## training
-        'n_steps_per_epoch': 10000,
+        'n_steps_per_epoch': 1000,
         'loss_type': 'l2',
         'n_train_steps': 2e6,
         'batch_size': 32,
@@ -72,6 +72,7 @@ base = {
         'n_samples': 10,
         'bucket': None,
         'device': 'cuda',
+        'steps_til_summary': 1000,
     },
 
     'plan': {
