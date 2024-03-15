@@ -58,7 +58,7 @@ def get_dataset(env):
     if type(env) != str:
         dataset = env.get_dataset()
     else:
-        dataset = dict(h5py.File(f'/home/ws/src/{env}.hdf5'))
+        dataset = dict(h5py.File(f'/home/ws/src/diffuser/{env}.hdf5'))
         # Extract 'infos' dictionary
         infos_dict = dict(dataset['infos'])
         # Remove 'infos' from the original dataset
