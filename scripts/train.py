@@ -8,7 +8,7 @@ import wandb
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'robo-v0'
+    dataset: str = 'ur5_coppeliasim_full_path_plus_hand_v1'
     config: str = 'config.robo'
 
 args = Parser().parse_args('diffusion')

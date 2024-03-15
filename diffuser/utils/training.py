@@ -171,7 +171,7 @@ class Trainer(object):
         early_stopper = EarlyStopper(patience=early_stopper_patience, min_delta=0)
         train_losses_l = []
         validation_losses_l = []
-        n_valid_steps = 1000
+        n_valid_steps = 100
         timer = Timer()
         stop_training = False
         for step in range(n_train_steps):

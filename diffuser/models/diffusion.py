@@ -3,7 +3,7 @@ from typing import Callable
 import numpy as np
 import torch
 from torch import nn
-import pdb
+import time
 
 import diffuser.utils as utils
 from .helpers import (
@@ -220,12 +220,17 @@ class GaussianDiffusion(nn.Module):
         diffusion = [x] if return_diffusion else None
 
         progress = utils.Progress(self.n_timesteps) if verbose else utils.Silent()
+                
         for i in reversed(range(0, self.n_timesteps)):
+            start_time = time.time()
             t = make_timesteps(batch_size, i, device)
             x, values = sample_fn(self, x, cond, t, **sample_kwargs)
             x = apply_conditioning(x, cond, self.action_dim)
             #import ipdb; ipdb.set_trace()
-            progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
+            end_time = time.time()
+            execution_time = end_time - start_time
+            print(f"Execution time: {execution_time}")
+            #progress.update({'t': i, 'vmin': values.min().item(), 'vmax': values.max().item()})
 
             if return_diffusion: diffusion.append(x)
 
