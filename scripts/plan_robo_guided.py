@@ -22,7 +22,7 @@ class Parser(utils.Parser):
 args = Parser().parse_args('plan')
 
 #logger = utils.Logger(args)
-print(" Loading environment... please run CoppeliaSim if not yet running")
+print(" Loading environment... please run CoppeliaSim if not yet running ")
 env = CoppeliaGymFull()
 
 

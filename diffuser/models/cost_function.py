@@ -3,9 +3,7 @@ import torch.nn as nn
 import pdb
 import numpy as np
 import einops
-import sys
-sys.path.insert(0, '/home/ws/src')
-from reflected_mass.kinematicsAndDynamics import compute_reflected_mass
+from diffuser.robot.UR5kinematicsAndDynamics import compute_reflected_mass
 
 # Trajectory vector (name/parameter):
 # 0  - dq1       action angle (rad)
