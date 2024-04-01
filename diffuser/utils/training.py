@@ -25,14 +25,11 @@ def get_dataset(dataset,
                 ):
     
     full_dataset = dataset
-    print(full_dataset)
-
     # split into train and validation
     train_size = len(full_dataset) - len(full_dataset)*val_set_size
     valid_size = len(full_dataset)*val_set_size
     
     train_subset, val_subset = random_split(full_dataset, [int(train_size+1), int(valid_size)])
-    
     #By using cycle the dataloader's iterator is infinite since cyclic
     train_dataloader = cycle(DataLoader(
         train_subset, batch_size=batch_size, num_workers=1, shuffle=True, pin_memory=True)) 

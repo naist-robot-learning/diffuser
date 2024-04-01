@@ -1,6 +1,6 @@
 import json
 import numpy as np
-from os.path import join
+from os.path import join, exists
 import ipdb
 import time
 
@@ -75,13 +75,17 @@ policy = policy_config()
 #---------------------------------- main loop ----------------------------------#
 
 
-for i in range(0, 30):
+for i in range(0, 10):
     observation = env.reset()
     ## observations for rendering
     rollout = [observation.copy()]
     cond = {}
     total_reward = 0
-    for t in range(0,32):
+    joint_position = []
+    robot_hand_pose = []
+    goal_pose = []
+    
+    for t in range(0,args.horizon):
         print("t: ", t)
         state = observation.copy()
     
@@ -97,13 +101,18 @@ for i in range(0, 30):
             sequence = samples.observations[0]
             fullpath = join(args.savepath, f'{t}.png')
             # Create a plot of the actions over time
-            plt.plot(actions)
+            plt.plot(actions, label='actions')
+            plt.plot(sequence[:,0:6], label='sequence')
             plt.show()
             
             #renderer.composite(fullpath, samples.observations, ncol=1)
         #import ipdb; ipdb.set_trace()
         next_observation, reward, terminal, _ = env.step(actions[t,:])
-        time.sleep(0.005)
+        joint_position.append(next_observation[0:6])
+        robot_hand_pose.append(next_observation[6:12])
+        goal_pose.append(next_observation[12:18])
+        #next_observation, reward, terminal, _ = env.step(sequence[t,0:6])
+        time.sleep(0.010)
         total_reward = reward
         #score = env.get_normalized_score(total_reward)
         score = total_reward
@@ -138,6 +147,19 @@ for i in range(0, 30):
         observation = next_observation
 
 # logger.finish(t, env.max_episode_steps, score=score, value=0)
+index = 1
+directory = 'logs'
+while True:
+    filename = join(args.savepath, f"Trial_{index}_{args.scale}.npz")
+    if not exists(filename):
+        np.savez(filename, 
+                 joint_position = joint_position,
+                 robot_hand_pose = robot_hand_pose,
+                 goal_pose = goal_pose)
+        print(f"Arrays saved to: {filename}")
+        break
+    else:
+        index += 1
 
 ## save result as a json file
 json_path = join(args.savepath, 'rollout.json')

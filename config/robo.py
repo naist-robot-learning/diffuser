@@ -50,7 +50,7 @@ base = {
         'preprocess_fns': [],               #['maze2d_set_terminals'],
         'clip_denoised': False,  #MAze is true
         'use_padding': True,     # Maze is false
-        'max_path_length': 1000,
+        'max_path_length': 150,
 
         ## serialization
         'logbase': 'logs',
@@ -80,7 +80,7 @@ base = {
         'model': 'models.cost_function.CostFn',              # New Cost Fn !
         'guide': 'sampling.guides.ValueGuide',
         'policy': 'sampling.policies.GuidedPolicy',
-        'batch_size': 32,
+        'batch_size': 64,
         'preprocess_fns': [],
         'device': 'cuda',
         
@@ -137,14 +137,14 @@ ur5_coppeliasim_full_path_v1 = {
 }
 ur5_coppeliasim_full_path_plus_hand_v1 = {
     'diffusion': {
-        'horizon': 32,   #longest path in dataset
-        'n_diffusion_steps': 128,
+        'horizon': 64,   #longest path in dataset
+        'n_diffusion_steps': 64,
         'attention': True,
     },
     'plan': {
-        'horizon': 32,
-        'n_diffusion_steps': 128,
-        'scale': 0.000000001,
-        't_stopgrad': 4
+        'horizon': 64,
+        'n_diffusion_steps': 64,
+        'scale': 0.01,
+        't_stopgrad': 1
     },
 }

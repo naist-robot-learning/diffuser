@@ -26,7 +26,6 @@ class SequenceDataset(torch.utils.data.Dataset):
         for i, episode in enumerate(itr):
             fields.add_path(episode)
         fields.finalize()
-
         self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields['path_lengths'])
         self.indices = self.make_indices(fields.path_lengths, horizon)
         self.observation_dim = fields.observations.shape[-1]
@@ -35,7 +34,6 @@ class SequenceDataset(torch.utils.data.Dataset):
         self.n_episodes = fields.n_episodes
         self.path_lengths = fields.path_lengths
         self.normalize()
-
         print(fields)
         # shapes = {key: val.shape for key, val in self.fields.items()}
         # print(f'[ datasets/mujoco ] Dataset fields: {shapes}')
@@ -82,10 +80,8 @@ class SequenceDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx, eps=1e-4):
         path_ind, start, end = self.indices[idx]
-
         observations = self.fields.normed_observations[path_ind, start:end]
         actions = self.fields.normed_actions[path_ind, start:end]
-
         conditions = self.get_conditions(observations)
         trajectories = np.concatenate([actions, observations], axis=-1)
         batch = Batch(trajectories, conditions)
