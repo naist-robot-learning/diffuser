@@ -1,5 +1,6 @@
 import torch
 import numpy as np
+import time
 
 from diffuser.models.helpers import (
     extract,
@@ -18,7 +19,10 @@ def n_step_guided_p_sample(
         with torch.enable_grad():
             #print("n_guide_steps: ", n_guide_steps)
             #print("antes de grad: ", t)
+            #start = time.time()
             y, grad = guide.gradients(x, cond, t)
+            #end = time.time()
+            #print("time to compute gradient: ", end-start)
             #print("despues de grad: ", t)
             #import ipdb; ipdb.set_trace()
         if scale_grad_by_std:
@@ -32,9 +36,11 @@ def n_step_guided_p_sample(
         #print("x[0,0,:]: ", x[0,0,:])
         #print("grad[0,0,:]: ", grad[0,0,:])
         x = x + scale * grad
+        
         #print("x[0,0,:]: ", x[0,0,:])
         x = apply_conditioning(x, cond, model.action_dim)
         #print("x.shape: ", np.shape(x))
+        
 
     model_mean, _, model_log_variance = model.p_mean_variance(x=x, cond=cond, t=t)
 

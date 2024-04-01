@@ -1,5 +1,6 @@
 import diffuser.utils as utils
 import pdb
+import wandb
 
 
 #-----------------------------------------------------------------------------#
@@ -7,12 +8,12 @@ import pdb
 #-----------------------------------------------------------------------------#
 
 class Parser(utils.Parser):
-    dataset: str = 'robo-v0'
+    dataset: str = 'ur5_coppeliasim_full_path_plus_hand_v1'
     config: str = 'config.robo'
 
 args = Parser().parse_args('diffusion')
 
-
+wandb.init(project="Robo-Diffuser", name=f'{args.exp_name}')
 #-----------------------------------------------------------------------------#
 #---------------------------------- dataset ----------------------------------#
 #-----------------------------------------------------------------------------#
@@ -120,6 +121,12 @@ print('✓')
 n_epochs = int(args.n_train_steps // args.n_steps_per_epoch)
 
 for i in range(n_epochs):
-    print(f'Epoch {i} / {n_epochs} | {args.savepath}')
-    trainer.train(n_train_steps=args.n_steps_per_epoch)
+            print(f'Epoch {i} / {n_epochs} | {args.savepath}')
+            stop = trainer.train(n_train_steps=args.n_steps_per_epoch,
+                          epoch=i,
+                          steps_til_summary=args.steps_til_summary, 
+                          )
+            if stop:
+                break
+wandb.finish()
 

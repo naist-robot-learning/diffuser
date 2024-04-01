@@ -40,7 +40,6 @@ def load_environment(name):
     if type(name) != str:
         ## name is already an environment
         return name
-    
     try:
         with suppress_output():
             wrapped_env = gym.make(name)

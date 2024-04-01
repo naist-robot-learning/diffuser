@@ -3,25 +3,35 @@ import torch.nn as nn
 import pdb
 import numpy as np
 import einops
+from diffuser.robot.UR5kinematicsAndDynamics_vectorized import compute_reflected_mass, fkine
 
-# State-Space (name/joint/parameter):
-# 0   6       - rootz     slider      position (m)
-# 1   7       - rooty     hinge       angle (rad)
-# 2   8       - bthigh    hinge       angle (rad)
-# 3   9       - bshin     hinge       angle (rad)
-# 4  10       - bfoot     hinge       angle (rad)
-# 5  11       - fthigh    hinge       angle (rad)
-# 6  12       - fshin     hinge       angle (rad)
-# 7  13       - ffoot     hinge       angle (rad)
-# 8  14       - rootx     slider      velocity (m/s)
-# 9  15       - rootz     slider      velocity (m/s)
-#10  16       - rooty     hinge       angular velocity (rad/s)
-#11  17       - bthigh    hinge       angular velocity (rad/s)
-#12  18       - bshin     hinge       angular velocity (rad/s)
-#13  19       - bfoot     hinge       angular velocity (rad/s)
-#14  20       - fthigh    hinge       angular velocity (rad/s)
-#15  21       - fshin     hinge       angular velocity (rad/s)
-#16  22       - ffoot     hinge       angular velocity (rad/s)
+# Trajectory vector (name/parameter):
+# 0  - dq1       action angle (rad)
+# 1  - dq2       action angle (rad)
+# 2  - dq3       action angle (rad)
+# 3  - dq4       action angle (rad)
+# 4  - dq5       action angle (rad)
+# 5  - dq6       action angle (rad)
+# 6  - q1        angle (rad)
+# 7  - q2        angle (rad)
+# 8  - q3        angle (rad)
+# 9  - q4        angle (rad)
+#10  - q5        angle (rad)
+#11  - q6        angle (rad)
+#12  - x_goal    x position of goal pose (m)
+#13  - y_goal    y position of goal pose (m)
+#14  - z_goal    z position of goal pose (m)
+#15  - q         1st element of quaternion
+#16  - u         2nd element of quaternion
+#17  - a         3rd element of quaternion
+#18  - t         4th element of quaternion
+#19  - x_hand    x position of hand pose (m)
+#20  - y_hand    y position of hand pose (m)
+#21  - z_hand    z position of hand pose (m)
+#22  - q         1st element of quaternion
+#23  - u         2nd element of quaternion
+#24  - a         3rd element of quaternion
+#25  - t         4th element of quaternion
 
 class CostFn(nn.Module):
 
@@ -42,34 +52,43 @@ class CostFn(nn.Module):
         #self.q_des.to("cuda")           
 
     def forward(self,
-                x: torch.tensor((1,384,6)), 
-                cond: torch.tensor((1,384,6)), 
-                time: torch.tensor) -> torch.tensor(1):
-        '''
+                x: torch.tensor((64,32,26)), 
+                cond: torch.tensor((64,32,26)), 
+                time: torch.tensor) -> torch.tensor(64):
+        ''' 
             x : [ batch x horizon x transition ]
         '''
+        ###### NAIVE IMPLEMENTATION, BASICALLY USELESS ########
+        # batch_size = x.shape[0]
+        # horizon = x.shape[1]
+        # transition_dim = x.shape[2]
+        # x = einops.rearrange(x, 'b h t -> b t h')
+        # cost = torch.empty((batch_size,horizon))
+        # u = torch.empty(3).to("cuda")
+        # u[0] = 1; u[1] = 0; u[2] = 0
+        # for i in range(0,batch_size):
+        #     for j in range(0,horizon):
+        #         cost[i,j] = compute_reflected_mass(x[i,6:12,j], u)           
+        # final_cost = cost.sum(axis=1).sum(axis=0)
+        # return final_cost
+        
+        ####### (TODO) VECTORISED IMPLEMENTATION ######## 
+        batch_size = x.shape[0]
+        horizon = x.shape[1]
+        transition_dim = x.shape[2]
         x = einops.rearrange(x, 'b h t -> b t h')
-        q = torch.tensor(x).to("cuda")
-        #print("x[0,:,0]", x[0,:,0])
+        cost = torch.empty((batch_size, horizon)).to('cuda')
+        u = torch.empty((batch_size*horizon, 3, 1), dtype=torch.float32).to('cuda')
+        #u[:,0] = 1/(2)**(1/2); u[:,1] = 0; u[:,2] = 1/(2)**(1/2)
+        #u[:,0] = 1; u[:,1] = 0; u[:,2] = 0
         #import ipdb; ipdb.set_trace()
-        q[:, 2, :] = cond["obst"][0][0]
-        q[:, 3, :] = cond["obst"][0][1]
-        
-        
- 
-        # print("q[0, 8, 0]: ", q[0, 8, 0])
-        # print("self.q_des[0, 8,0]: ", self.q_des[0, 8,0])
-        # print("x[0, 8, 0]: ", x[0, 8, 0])
-        cond_vec = q
-        d = cond_vec - x
-        euclid = (d).pow(2).sum(axis=1).sqrt()
-        eps = 1e-5
-        if (euclid > 0.4).all():
-            power= x.pow(2)*0.0
-        else:
-            power = -1/((d).pow(2)+eps)            # max of concave
-        
-        squared_norm = power.sum(axis=1)
-        cost = squared_norm.sum(axis=1)     
-
-        return cost
+        x_ = einops.rearrange(x, 'b t h -> t (b h)').to('cuda')
+        x_tcp = fkine(x_[6:12,:])[:,0:3].unsqueeze(2)
+        x_hand = x_[19:22,:].permute(1,0).unsqueeze(2)
+        ## compute normalized direction vector from x_tcp to x_hand
+        u = (x_hand - x_tcp)/torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
+        cost = compute_reflected_mass(x[:,6:12,:], u)
+        #cost = compute_reflected_mass(x[:,:6,:], u)
+        final_cost = -1*cost.sum(axis=1)
+        #import ipdb; ipdb.set_trace()
+        return final_cost

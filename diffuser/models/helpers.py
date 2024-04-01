@@ -148,7 +148,12 @@ def apply_conditioning(x, conditions, action_dim):
         if type(t) is str:
             continue
         else:
+            
             x[:, t, action_dim:] = val.clone()
+            #x[:, t, :action_dim] = val[:,:6].clone()
+            # Check if x state dimension is larger than 12
+            if x.shape[2] > 12:
+                x[:, :, 12:] = val[:, None,6:].clone() 
     return x
 
 

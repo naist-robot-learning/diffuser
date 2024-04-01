@@ -11,6 +11,7 @@ diffusion_args_to_watch = [
     ('prefix', ''),
     ('horizon', 'H'),
     ('n_diffusion_steps', 'T'),
+    ('dataset', '')
 ]
 
 
@@ -43,13 +44,13 @@ base = {
         'renderer': '',
 
         ## dataset
-        'loader': 'datasets.GoalDataset',
+        'loader': 'datasets.SequenceDataset',
         'termination_penalty': None,
         'normalizer': 'GaussianNormalizer',
         'preprocess_fns': [],               #['maze2d_set_terminals'],
         'clip_denoised': False,  #MAze is true
         'use_padding': True,     # Maze is false
-        'max_path_length': 1000,
+        'max_path_length': 150,
 
         ## serialization
         'logbase': 'logs',
@@ -57,10 +58,10 @@ base = {
         'exp_name': watch(diffusion_args_to_watch),
 
         ## training
-        'n_steps_per_epoch': 10000,
+        'n_steps_per_epoch': 1000,
         'loss_type': 'l2',
         'n_train_steps': 2e6,
-        'batch_size': 32,
+        'batch_size': 64,
         'learning_rate': 2e-4,
         'gradient_accumulate_every': 2,
         'ema_decay': 0.995,
@@ -72,13 +73,14 @@ base = {
         'n_samples': 10,
         'bucket': None,
         'device': 'cuda',
+        'steps_til_summary': 1000,
     },
 
     'plan': {
         'model': 'models.cost_function.CostFn',              # New Cost Fn !
         'guide': 'sampling.guides.ValueGuide',
         'policy': 'sampling.policies.GuidedPolicy',
-        'batch_size': 32,
+        'batch_size': 64,
         'preprocess_fns': [],
         'device': 'cuda',
         
@@ -103,7 +105,7 @@ base = {
         'conditional': False,
 
         ## loading
-        'diffusion_loadpath': 'f:diffusion/H{horizon}_T{n_diffusion_steps}',
+        'diffusion_loadpath': 'f:diffusion/H{horizon}_T{n_diffusion_steps}_{dataset}',
         'diffusion_epoch': 'latest',
         
         'verbose': True,
@@ -120,16 +122,29 @@ base = {
         large: 600
 '''
 
-robo_v0 = {
+ur5_coppeliasim_full_path_v1 = {
     'diffusion': {
         'horizon': 32,   #longest path in dataset
         'n_diffusion_steps': 128,
         'attention': True,
     },
     'plan': {
-        'horizon': 8,
+        'horizon': 32,
         'n_diffusion_steps': 128,
-        'scale': 0.001,
+        'scale': 0.000000001,
         't_stopgrad': 4
+    },
+}
+ur5_coppeliasim_full_path_plus_hand_v1 = {
+    'diffusion': {
+        'horizon': 64,   #longest path in dataset
+        'n_diffusion_steps': 64,
+        'attention': True,
+    },
+    'plan': {
+        'horizon': 64,
+        'n_diffusion_steps': 64,
+        'scale': 0.01,
+        't_stopgrad': 1
     },
 }
