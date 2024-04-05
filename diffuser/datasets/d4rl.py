@@ -11,30 +11,35 @@ from contextlib import (
     redirect_stdout,
 )
 
+
 @contextmanager
 def suppress_output():
     """
-        A context manager that redirects stdout and stderr to devnull
-        https://stackoverflow.com/a/52442331
+    A context manager that redirects stdout and stderr to devnull
+    https://stackoverflow.com/a/52442331
     """
-    with open(os.devnull, 'w') as fnull:
+    with open(os.devnull, "w") as fnull:
         with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
             yield (err, out)
+
 
 with suppress_output():
     ## d4rl prints out a variety of warnings
     import d4rl
 
-#-----------------------------------------------------------------------------#
-#-------------------------------- general api --------------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# -------------------------------- general api --------------------------------#
+# -----------------------------------------------------------------------------#
+
 
 class TerminalColors:
-    RED = '\033[91m'
-    END = '\033[0m'
+    RED = "\033[91m"
+    END = "\033[0m"
+
 
 def print_error(message):
     print(f"{TerminalColors.RED}{message}{TerminalColors.END}")
+
 
 def load_environment(name):
     if type(name) != str:
@@ -44,29 +49,30 @@ def load_environment(name):
         with suppress_output():
             wrapped_env = gym.make(name)
     except Exception as e:
-            print_error(f"Error: {e}")
-            print_error("load_environment() will just return arg name")
-            return name
-            
+        print_error(f"Error: {e}")
+        print_error("load_environment() will just return arg name")
+        return name
+
     env = wrapped_env.unwrapped
     env.max_episode_steps = wrapped_env._max_episode_steps
     env.name = name
     return env
 
+
 def get_dataset(env):
     if type(env) != str:
         dataset = env.get_dataset()
     else:
-        dataset = dict(h5py.File(f'/home/ws/src/{env}.hdf5'))
+        dataset = dict(h5py.File(f"/home/ws/src/{env}.hdf5"))
         # Extract 'infos' dictionary
-        infos_dict = dict(dataset['infos'])
+        infos_dict = dict(dataset["infos"])
         # Remove 'infos' from the original dataset
-        del dataset['infos']
+        del dataset["infos"]
         # Iterate through keys in 'infos' and move them to 'dataset'
         for key in infos_dict.keys():
-            new_key = f'infos/{key}'
+            new_key = f"infos/{key}"
             dataset[new_key] = infos_dict[key]
-    if 'antmaze' in str(env).lower():
+    if "antmaze" in str(env).lower():
         ## the antmaze-v0 environments have a variety of bugs
         ## involving trajectory segmentation, so manually reset
         ## the terminal and timeout fields
@@ -75,6 +81,7 @@ def get_dataset(env):
         get_max_delta(dataset)
 
     return dataset
+
 
 def sequence_dataset(env, preprocess_fn):
     """
@@ -95,27 +102,28 @@ def sequence_dataset(env, preprocess_fn):
         envname = env.name
     else:
         envname = env
-        
+
     dataset = get_dataset(env)
     dataset = preprocess_fn(dataset)
 
-    N = dataset['rewards'].shape[0]
+    N = dataset["rewards"].shape[0]
     data_ = collections.defaultdict(list)
 
     # The newer version of the dataset adds an explicit
     # timeouts field. Keep old method for backwards compatability.
-    use_timeouts = 'timeouts' in dataset
+    use_timeouts = "timeouts" in dataset
 
     episode_step = 0
     for i in range(N):
-        done_bool = bool(dataset['terminals'][i])
+        done_bool = bool(dataset["terminals"][i])
         if use_timeouts:
-            final_timestep = dataset['timeouts'][i]
+            final_timestep = dataset["timeouts"][i]
         else:
-            final_timestep = (episode_step == env._max_episode_steps - 1)
+            final_timestep = episode_step == env._max_episode_steps - 1
 
         for k in dataset:
-            if 'metadata' in k: continue
+            if "metadata" in k:
+                continue
             data_[k].append(dataset[k][i])
 
         if done_bool or final_timestep:
@@ -123,7 +131,7 @@ def sequence_dataset(env, preprocess_fn):
             episode_data = {}
             for k in data_:
                 episode_data[k] = np.array(data_[k])
-            if 'maze2d' in envname:
+            if "maze2d" in envname:
                 episode_data = process_maze2d_episode(episode_data)
             yield episode_data
             data_ = collections.defaultdict(list)
@@ -131,18 +139,19 @@ def sequence_dataset(env, preprocess_fn):
         episode_step += 1
 
 
-#-----------------------------------------------------------------------------#
-#-------------------------------- maze2d fixes -------------------------------#
-#-----------------------------------------------------------------------------#
+# -----------------------------------------------------------------------------#
+# -------------------------------- maze2d fixes -------------------------------#
+# -----------------------------------------------------------------------------#
+
 
 def process_maze2d_episode(episode):
-    '''
-        adds in `next_observations` field to episode
-    '''
-    assert 'next_observations' not in episode
-    length = len(episode['observations'])
-    next_observations = episode['observations'][1:].copy()
+    """
+    adds in `next_observations` field to episode
+    """
+    assert "next_observations" not in episode
+    length = len(episode["observations"])
+    next_observations = episode["observations"][1:].copy()
     for key, val in episode.items():
         episode[key] = val[:-1]
-    episode['next_observations'] = next_observations
+    episode["next_observations"] = next_observations
     return episode
