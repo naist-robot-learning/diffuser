@@ -234,12 +234,12 @@ class Trainer(object):
                     valid_loss = np.mean(validation_losses_l)
                     # validation_losses_log = {f"VALIDATION Diffusion_loss": valid_loss}
 
-                self.writer.add_scalar(
-                    "TRAINING Diffusion_loss", train_loss, global_step=train_steps_current
+                self.writer.add_scalars(
+                    "Diffusion_loss",
+                    {"TRAINING": train_loss, "VALIDATION": valid_loss},
+                    global_step=train_steps_current,
                 )
-                self.writer.add_scalar(
-                    "VALIDATION Diffusion_loss", valid_loss, global_step=train_steps_current
-                )
+
                 if early_stopper.early_stop(total_val_loss):
                     print(f"Early stopped training at {train_steps_current} steps.")
                     stop_training = True
@@ -266,7 +266,7 @@ class Trainer(object):
             if stop_training:
                 self.writer.close()
                 return stop_training
-            
+
         self.writer.close()
         return stop_training
 
