@@ -6,7 +6,7 @@ import diffuser.utils as utils
 
 
 class Parser(utils.Parser):
-    dataset: str = "ur5_coppeliasim_full_path_plus_hand_v1"
+    dataset: str = "ur5_coppeliasim_full_path_goal"
     config: str = "config.robo"
 
 
@@ -23,6 +23,7 @@ dataset_config = utils.Config(
     normalizer=args.normalizer,
     preprocess_fns=args.preprocess_fns,
     use_padding=args.use_padding,
+    use_actions=args.use_actions,
     max_path_length=args.max_path_length,
 )
 ## TODO Build a renderer
@@ -31,8 +32,11 @@ dataset_config = utils.Config(
 #     savepath=(args.savepath, 'render_config.pkl'),
 #     env=args.dataset,
 # )
-
+# with cProfile.Profile() as pr:
 dataset = dataset_config()
+# stats = pstats.Stats(pr)
+# stats.sort_stats(pstats.SortKey.TIME)
+# stats.print_stats()
 # renderer = render_config()
 
 observation_dim = dataset.observation_dim
