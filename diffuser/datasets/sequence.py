@@ -147,11 +147,13 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         max_n_episodes=10000,
         termination_penalty=0,
         use_padding=True,
+        use_actions=True,
     ):
         self.preprocess_fn = get_preprocess_fn(preprocess_fns, env)
         self.env = env = load_environment(env)
         self.horizon = horizon
         self.use_padding = use_padding
+        self.use_actions = use_actions
         self.max_path_length = max_path_length
         itr = sequence_dataset(env, self.preprocess_fn)
         fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
@@ -161,8 +163,13 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         self.normalizer = DatasetNormalizer(
             fields, normalizer, path_lengths=fields["path_lengths"]
         )
+
         self.observation_dim = fields.observations.shape[-1]
-        self.action_dim = fields.actions.shape[-1]
+        if use_actions:
+            self.action_dim = fields.actions.shape[-1]
+        else:
+            self.action_dim = 0
+
         self.fields = fields
         self.n_episodes = fields.n_episodes
         self.path_lengths = fields.path_lengths
@@ -192,9 +199,16 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         return self.fields.observations.shape[0]
 
     def __getitem__(self, idx, eps=1e-4):
+        # [Batch x Horizon x Transition_dim]
         observations = self.fields.normed_observations[idx, : self.horizon]
-        actions = self.fields.normed_actions[idx, : self.horizon]
-        conditions = self.get_conditions(observations)
-        trajectories = np.concatenate([actions, observations], axis=-1)
+
+        if self.use_actions:
+            actions = self.fields.normed_actions[idx, : self.horizon]
+            conditions = self.get_conditions(observations)
+            trajectories = np.concatenate([actions, observations], axis=-1)
+        else:
+            # in this case the first 6 elements of observations are the actions
+            trajectories = observations
+            conditions = self.get_conditions(observations)
         batch = Batch(trajectories, conditions)
         return batch

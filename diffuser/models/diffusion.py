@@ -254,7 +254,7 @@ class GaussianDiffusion(nn.Module):
                 diffusion.append(x)
 
         progress.stamp()
-        # x, values = sort_by_values(x, values)
+        x, values = sort_by_values(x, values)
         if return_diffusion:
             diffusion = torch.stack(diffusion, dim=1)
         return Sample(x, values, diffusion)

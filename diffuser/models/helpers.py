@@ -166,8 +166,8 @@ def apply_conditioning(x, conditions, action_dim):
             x[:, t, action_dim:] = val.clone()
             # x[:, t, :action_dim] = val[:,:6].clone()
             # Check if x state dimension is larger than 12
-            if x.shape[2] > 12 and cnt == 0:
-                x[:, :, 12:] = val[:, None, 6:].clone()
+            if cnt == 0:
+                x[:, :, 6:] = val[:, None, 6:].clone()
                 cnt += 1
     return x
 
@@ -182,7 +182,12 @@ class WeightedLoss(nn.Module):
     def __init__(self, weights, action_dim):
         super().__init__()
         self.register_buffer("weights", weights)
-        self.action_dim = action_dim
+        if action_dim:
+            self.action_dim = action_dim
+        else:
+            # Default action_dim to 6 to compute a0_loss, this would resemble
+            # the loss of the first observation
+            self.action_dim = 6
 
     def forward(self, pred, targ):
         """
