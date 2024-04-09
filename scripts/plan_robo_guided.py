@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 
 
 class Parser(utils.Parser):
-    dataset: str = "ur5_coppeliasim_full_path_plus_hand_v1"
+    dataset: str = "ur5_coppeliasim_full_path_goal"
     config: str = "config.robo"
 
 
@@ -78,7 +78,9 @@ policy = policy_config()
 
 
 for i in range(0, 10):
-    observation = env.reset()
+    remove_str = "ur5_coppeliasim_full_"
+    state_type = args.dataset[len(remove_str) :]
+    observation = env.reset(state_type=state_type)
     ## observations for rendering
     rollout = [observation.copy()]
     cond = {}
@@ -98,17 +100,12 @@ for i in range(0, 10):
             print("observation: ", observation)
             # import ipdb; ipdb.set_trace()
             # action, samples = policy(cond, batch_size=args.batch_size)
-            action, samples = policy(cond, batch_size=args.batch_size, verbose=args.verbose)
-            actions = samples.actions[0]
+            # action, samples = policy(cond, batch_size=args.batch_size, verbose=args.verbose)
+            samples = policy(cond, batch_size=args.batch_size, verbose=args.verbose)
+            # actions = samples.actions[0]
             sequence = samples.observations[0]
             fullpath = join(args.savepath, f"{t}.png")
             # Create a plot of the actions over time
-            plt.plot(actions[:, 0], label="q0_a")
-            plt.plot(actions[:, 1], label="q1_a")
-            plt.plot(actions[:, 2], label="q2_a")
-            plt.plot(actions[:, 3], label="q3_a")
-            plt.plot(actions[:, 4], label="q4_a")
-            plt.plot(actions[:, 5], label="q5_a")
 
             plt.plot(sequence[:, 0], label="q0")
             plt.plot(sequence[:, 1], label="q1")
