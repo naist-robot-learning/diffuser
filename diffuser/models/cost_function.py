@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import pdb
+import diffuser.utils as utils
 import numpy as np
 import einops
 from diffuser.robot.UR5kinematicsAndDynamics_vectorized import compute_reflected_mass, fkine
@@ -41,11 +41,13 @@ class CostFn(nn.Module):
         horizon: int,
         transition_dim: int,
         cond_dim: int,
+        normalizer: object,
         dim_mults: tuple = (1, 2, 4, 8),
         out_dim: int = 1,
     ):
         super().__init__()
         self.transition_dim = transition_dim
+        self._normalizer = normalizer
 
         # self.q_des = torch.zeros((64, transition_dim, horizon), requires_grad=False)
 
@@ -61,6 +63,7 @@ class CostFn(nn.Module):
         """
         x : [ batch x horizon x transition ]
         """
+        x = self._normalizer.unnormalize(x, 'observations')
         if self.transition_dim == cond[0].shape[1]:
             action_dim = 0
         else:
@@ -77,8 +80,9 @@ class CostFn(nn.Module):
         # import ipdb; ipdb.set_trace()
         x_ = einops.rearrange(x, "b t h -> t (b h)").to("cuda")
         x_tcp = fkine(x_[action_dim : action_dim + 6, :])[:, :3].unsqueeze(2)
-        hand_idx = action_dim + 6 + 3
-        x_hand = x_[hand_idx : hand_idx + 3, :].permute(1, 0).unsqueeze(2)
+        #hand_idx = action_dim + 6 + 3
+        #x_hand = x_[hand_idx : hand_idx + 3, :].permute(1, 0).unsqueeze(2)
+        x_hand = cond['hand_pose'][:, : 3].unsqueeze(2).repeat(horizon, 1, 1)
         ## compute normalized direction vector from x_tcp to x_hand
         u = (x_hand - x_tcp) / torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
         cost = compute_reflected_mass(x[:, action_dim : action_dim + 6, :], u)

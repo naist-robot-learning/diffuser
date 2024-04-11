@@ -60,7 +60,7 @@ class EarlyStopper:
         self.patience = patience  # use -1 to deactivate it
         self.min_delta = min_delta
         self.counter = 0
-        self.min_validation_loss = torch.inf
+        self.min_validation_loss = float('inf')
 
     def early_stop(self, validation_loss):
         if self.patience == -1:

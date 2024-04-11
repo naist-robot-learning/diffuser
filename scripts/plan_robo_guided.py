@@ -3,6 +3,7 @@ import numpy as np
 from os.path import join, exists
 import ipdb
 import time
+import torch
 
 from diffuser.guides.policies import Policy
 import diffuser.datasets as datasets
@@ -49,6 +50,7 @@ model_config = utils.Config(
     horizon=args.horizon,
     transition_dim=observation_dim + action_dim,
     cond_dim=observation_dim,
+    normalizer=dataset.normalizer,
     # dim_mults=args.dim_mults,
     device=args.device,
 )
@@ -80,7 +82,7 @@ policy = policy_config()
 for i in range(0, 10):
     remove_str = "ur5_coppeliasim_full_"
     state_type = args.dataset[len(remove_str) :]
-    observation = env.reset(state_type=state_type)
+    observation, hand_pose = env.reset(state_type=state_type)
     ## observations for rendering
     rollout = [observation.copy()]
     cond = {}
@@ -89,21 +91,22 @@ for i in range(0, 10):
     robot_hand_pose = []
     goal_pose = []
 
-    for t in range(0, args.horizon - 3):
+    for t in range(0, args.horizon):
         print("t: ", t)
         state = observation.copy()
 
         ## can replan if desired, but the open-loop plans are good enough for maze2d
         ## that we really only need to plan once
         if t == 0:
-            cond[0] = observation
+            cond[0] = torch.tensor(observation).to('cuda')
+            cond["hand_pose"] = torch.tensor(hand_pose).to('cuda')
             print("observation: ", observation)
             # import ipdb; ipdb.set_trace()
             # action, samples = policy(cond, batch_size=args.batch_size)
             # action, samples = policy(cond, batch_size=args.batch_size, verbose=args.verbose)
             samples = policy(cond, batch_size=args.batch_size, verbose=args.verbose)
             # actions = samples.actions[0]
-            sequence = samples.observations[0]
+            sequence = utils.to_np(samples.observations[0])
             fullpath = join(args.savepath, f"{t}.png")
             # Create a plot of the actions over time
 
@@ -119,7 +122,7 @@ for i in range(0, 10):
             plt.title("Diffuser output")
             plt.legend()
             plt.show()
-
+        
             # renderer.composite(fullpath, samples.observations, ncol=1)
         # import ipdb; ipdb.set_trace()
         # next_observation, reward, terminal, _ = env.step(actions[t, :])

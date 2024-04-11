@@ -1,6 +1,7 @@
 import numpy as np
 import scipy.interpolate as interpolate
-import pdb
+import torch
+
 
 POINTMASS_KEYS = ['observations', 'actions', 'next_observations', 'deltas']
 
@@ -91,14 +92,14 @@ class Normalizer:
     '''
 
     def __init__(self, X):
-        self.X = X.astype(np.float32)
+        self.X = torch.tensor(X, dtype=torch.float32).to('cuda')
         self.mins = X.min(axis=0)
         self.maxs = X.max(axis=0)
 
     def __repr__(self):
         return (
             f'''[ Normalizer ] dim: {self.mins.size}\n    -: '''
-            f'''{np.round(self.mins, 2)}\n    +: {np.round(self.maxs, 2)}\n'''
+            f'''{torch.round(self.mins, decimals=2)}\n    +: {torch.round(self.maxs, decimals=2)}\n'''
         )
 
     def __call__(self, x):
@@ -132,13 +133,16 @@ class GaussianNormalizer(Normalizer):
         super().__init__(*args, **kwargs)
         self.means = self.X.mean(axis=0)
         self.stds = self.X.std(axis=0)
+        if self.X.shape[1]>6:
+            self.stds[8:] = torch.tensor([2.06590886e-03, 1.30926096e-03, 
+                                          1.30926096e-03, 1.51827996e-16, 1.51827996e-16])
         self.z = 1
 
     def __repr__(self):
         return (
             f'''[ Normalizer ] dim: {self.mins.size}\n    '''
-            f'''means: {np.round(self.means, 2)}\n    '''
-            f'''stds: {np.round(self.z * self.stds, 2)}\n'''
+            f'''means: {torch.round(self.means, decimals=2)}\n    '''
+            f'''stds: {torch.round(self.z * self.stds, decimals=2)}\n'''
         )
 
     def normalize(self, x):

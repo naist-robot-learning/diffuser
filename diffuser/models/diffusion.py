@@ -234,7 +234,6 @@ class GaussianDiffusion(nn.Module):
             namedtuple: _description_
         """
         device = self.betas.device
-
         batch_size = shape[0]
         x = torch.randn(shape, device=device)
         x = apply_conditioning(x, cond, self.action_dim)

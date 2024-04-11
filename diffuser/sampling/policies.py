@@ -29,7 +29,7 @@ class GuidedPolicy:
         samples = self.diffusion_model(
             conditions, guide=self.guide, verbose=verbose, **self.sample_kwargs
         )
-        trajectories = utils.to_np(samples.trajectories)
+        trajectories = samples.trajectories
         ## extract action [ batch_size x horizon x transition_dim ]
         # actions = trajectories[:, :, : self.action_dim]
         # actions = self.normalizer.unnormalize(actions, 'actions')
@@ -51,11 +51,16 @@ class GuidedPolicy:
         return parameters[0].device
 
     def _format_conditions(self, conditions, batch_size):
-        conditions = utils.apply_dict(
+        # Remove hand_pose for normalization
+        condition_obs = dict([next(iter(conditions.items()))])
+        condition_obs = utils.apply_dict(
             self.normalizer.normalize,
-            conditions,
+            condition_obs,
             "observations",
         )
+        # Concatenate back with hand_pose
+        key_obs = next(iter(condition_obs.keys()))
+        conditions[key_obs] = condition_obs[key_obs]
         conditions = utils.to_torch(conditions, dtype=torch.float32, device="cuda:0")
         conditions = utils.apply_dict(
             einops.repeat,

@@ -163,7 +163,6 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         self.normalizer = DatasetNormalizer(
             fields, normalizer, path_lengths=fields["path_lengths"]
         )
-
         self.observation_dim = fields.observations.shape[-1]
         if use_actions:
             self.action_dim = fields.actions.shape[-1]
@@ -183,7 +182,7 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         normalize fields that will be predicted by the diffusion model
         """
         for key in keys:
-            array = self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)
+            array = torch.tensor(self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)).to('cuda')
             normed = self.normalizer(array, key)
             self.fields[f"normed_{key}"] = normed.reshape(
                 self.n_episodes, self.max_path_length, -1
@@ -193,7 +192,7 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         """
         condition on current observation for planning
         """
-        return {0: observations[0], len(observations) - 1: observations[-1]}
+        return {0: observations[0]}#, len(observations) - 1: observations[-1]}
 
     def __len__(self):
         return self.fields.observations.shape[0]

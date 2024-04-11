@@ -63,7 +63,7 @@ base = {
         "ema_decay": 0.995,
         "save_freq": 1000,
         "sample_freq": 1000,
-        "n_saves": 50,
+        "n_saves": 51,
         "save_parallel": False,
         "n_reference": 50,
         "n_samples": 10,
@@ -113,15 +113,15 @@ base = {
 ur5_coppeliasim_full_path_goal = {
     "diffusion": {
         "horizon": 48,  # longest path in dataset
-        "n_diffusion_steps": 20,
+        "n_diffusion_steps": 25,
         "attention": True,
         "use_actions": False,
     },
     "plan": {
-        "horizon": 32,
-        "n_diffusion_steps": 128,
+        "horizon": 48,
+        "n_diffusion_steps": 22,
         "use_actions": False,
-        "scale": 0.000000001,
+        "scale": 0.001,
         "t_stopgrad": 4,
     },
 }

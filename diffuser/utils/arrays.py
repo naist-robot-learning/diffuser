@@ -64,9 +64,9 @@ def batchify(batch):
 	return type(batch)(*batched_vals)
 
 def apply_dict(fn, d, *args, **kwargs):
-	return {
-		k: fn(v, *args, **kwargs)
-		for k, v in d.items()
+    return {
+        k: fn(v, *args, **kwargs)
+        for k, v in d.items()
 	}
 
 def normalize(x):
