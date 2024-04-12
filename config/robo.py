@@ -113,15 +113,15 @@ base = {
 ur5_coppeliasim_full_path_goal = {
     "diffusion": {
         "horizon": 48,  # longest path in dataset
-        "n_diffusion_steps": 25,
+        "n_diffusion_steps": 22,
         "attention": True,
         "use_actions": False,
     },
     "plan": {
         "horizon": 48,
-        "n_diffusion_steps": 25,
+        "n_diffusion_steps": 20,
         "use_actions": False,
-        "scale": 0.001,
+        "scale": 0.00000000001,
         "t_stopgrad": 4,
     },
 }

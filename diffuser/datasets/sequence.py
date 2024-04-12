@@ -35,9 +35,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         for i, episode in enumerate(itr):
             fields.add_path(episode)
         fields.finalize()
-        self.normalizer = DatasetNormalizer(
-            fields, normalizer, path_lengths=fields["path_lengths"]
-        )
+        self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields["path_lengths"])
         self.indices = self.make_indices(fields.path_lengths, horizon)
         self.observation_dim = fields.observations.shape[-1]
         self.action_dim = fields.actions.shape[-1]
@@ -56,9 +54,7 @@ class SequenceDataset(torch.utils.data.Dataset):
         for key in keys:
             array = self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)
             normed = self.normalizer(array, key)
-            self.fields[f"normed_{key}"] = normed.reshape(
-                self.n_episodes, self.max_path_length, -1
-            )
+            self.fields[f"normed_{key}"] = normed.reshape(self.n_episodes, self.max_path_length, -1)
 
     def make_indices(self, path_lengths, horizon):
         """
@@ -155,14 +151,30 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         self.use_padding = use_padding
         self.use_actions = use_actions
         self.max_path_length = max_path_length
+        # import cProfile
+        # import pstats
+
+        # Profile the code
+        # profiler = cProfile.Profile()
+        # profiler.enable()
+
         itr = sequence_dataset(env, self.preprocess_fn)
+
         fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
+
         for i, episode in enumerate(itr):
+
             fields.add_path(episode)
+
+        # profiler.disable()
+        # Analyze the profile
+        # stats = pstats.Stats(profiler)
+        # stats.strip_dirs()
+        # stats.sort_stats("cumulative")  # Sort by cumulative time
+        # stats.print_stats()
+
         fields.finalize()
-        self.normalizer = DatasetNormalizer(
-            fields, normalizer, path_lengths=fields["path_lengths"]
-        )
+        self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields["path_lengths"])
         self.observation_dim = fields.observations.shape[-1]
         if use_actions:
             self.action_dim = fields.actions.shape[-1]
@@ -184,18 +196,16 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         for key in keys:
             array = torch.from_numpy(
                 self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)
-                ).to("cuda")
-            
+            ).to("cuda")
+
             normed = self.normalizer(array, key)
-            self.fields[f"normed_{key}"] = normed.reshape(
-                self.n_episodes, self.max_path_length, -1
-            )
+            self.fields[f"normed_{key}"] = normed.reshape(self.n_episodes, self.max_path_length, -1)
 
     def get_conditions(self, observations):
         """
         condition on current observation for planning
         """
-        return {0: observations[0]}#, len(observations) - 1: observations[-1]}
+        return {0: observations[0]}  # , len(observations) - 1: observations[-1]}
 
     def __len__(self):
         return self.fields.observations.shape[0]

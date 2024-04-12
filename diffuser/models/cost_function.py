@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
-import diffuser.utils as utils
-import numpy as np
-import einops
-from diffuser.robot.UR5kinematicsAndDynamics_vectorized import compute_reflected_mass, fkine
+from diffuser.models.costs import CostGPTrajectoryPositionOnlyWrapper, ReflectedMassCost
 
 # Trajectory vector (name/parameter):
 # 0  - dq1       action angle (rad)
@@ -63,30 +60,27 @@ class CostFn(nn.Module):
         """
         x : [ batch x horizon x transition ]
         """
-        x = self._normalizer.unnormalize(x, 'observations')
+        horizon = x.shape[1]
+        tensor_args = {"device": "cuda", "dtype": torch.float32}
+
+        x = self._normalizer.unnormalize(x, "observations")
         if self.transition_dim == cond[0].shape[1]:
             action_dim = 0
         else:
             action_dim = self.transition_dim - cond[0].shape[1]
 
-        batch_size = x.shape[0]
-        horizon = x.shape[1]
-        transition_dim = x.shape[2]
-        x = einops.rearrange(x, "b h t -> b t h")
-        cost = torch.empty((batch_size, horizon)).to("cuda")
-        u = torch.empty((batch_size * horizon, 3, 1), dtype=torch.float32).to("cuda")
-        # u[:,0] = 1/(2)**(1/2); u[:,1] = 0; u[:,2] = 1/(2)**(1/2)
-        # u[:,0] = 1; u[:,1] = 0; u[:,2] = 0
-        # import ipdb; ipdb.set_trace()
-        x_ = einops.rearrange(x, "b t h -> t (b h)").to("cuda")
-        x_tcp = fkine(x_[action_dim : action_dim + 6, :])[:, :3].unsqueeze(2)
-        #hand_idx = action_dim + 6 + 3
-        #x_hand = x_[hand_idx : hand_idx + 3, :].permute(1, 0).unsqueeze(2)
-        x_hand = cond['hand_pose'][:, : 3].unsqueeze(2).repeat(horizon, 1, 1)
-        ## compute normalized direction vector from x_tcp to x_hand
-        u = (x_hand - x_tcp) / torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
-        cost = compute_reflected_mass(x[:, action_dim : action_dim + 6, :], u)
-        # cost = compute_reflected_mass(x[:,:6,:], u)
-        final_cost = -1 * cost.sum(axis=1)
-        # import ipdb; ipdb.set_trace()
+        trajectory_duration = 5.0
+        dt = trajectory_duration / horizon
+
+        cost_smoothness = CostGPTrajectoryPositionOnlyWrapper(
+            n_dof=6, n_support_points=horizon, dt=dt, sigma_gp=1.0, tensor_args=tensor_args
+        )
+
+        cost_reflectedmass = ReflectedMassCost(action_dim)
+        Q1 = 1.0
+        Q2 = 1.0
+        cs_val = cost_smoothness(x[:, :, :6])
+        crm_val = cost_reflectedmass(x, cond)
+        final_cost = Q1 * cs_val + Q2 * crm_val
+
         return final_cost
