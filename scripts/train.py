@@ -109,11 +109,11 @@ trainer = trainer_config(diffusion, dataset)  # , renderer)
 
 utils.report_parameters(model)
 
-print("Testing forward...", end=" ", flush=True)
-batch = utils.batchify(dataset[0])
-loss, _ = diffusion.loss(*batch)
-loss.backward()
-print("✓")
+#print("Testing forward...", end=" ", flush=True)
+#batch = utils.batchify(dataset[0])
+#loss, _ = diffusion.loss(*batch)
+#loss.backward()
+#print("✓")
 
 
 # -----------------------------------------------------------------------------#

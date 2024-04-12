@@ -182,7 +182,10 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         normalize fields that will be predicted by the diffusion model
         """
         for key in keys:
-            array = torch.tensor(self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)).to('cuda')
+            array = torch.from_numpy(
+                self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)
+                ).to("cuda")
+            
             normed = self.normalizer(array, key)
             self.fields[f"normed_{key}"] = normed.reshape(
                 self.n_episodes, self.max_path_length, -1

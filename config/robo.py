@@ -119,7 +119,7 @@ ur5_coppeliasim_full_path_goal = {
     },
     "plan": {
         "horizon": 48,
-        "n_diffusion_steps": 22,
+        "n_diffusion_steps": 25,
         "use_actions": False,
         "scale": 0.001,
         "t_stopgrad": 4,

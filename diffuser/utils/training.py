@@ -27,7 +27,6 @@ def get_dataset(
     results_dir=None,
     save_indices=False,
 ):
-
     full_dataset = dataset
     # split into train and validation
     train_size = len(full_dataset) - len(full_dataset) * val_set_size
@@ -38,11 +37,11 @@ def get_dataset(
     # By using cycle the dataloader's iterator is infinite since cyclic
     train_dataloader = cycle(
         DataLoader(
-            train_subset, batch_size=batch_size, num_workers=1, shuffle=True, pin_memory=True
+            train_subset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=False
         )
     )
     val_dataloader = cycle(
-        DataLoader(val_subset, batch_size=batch_size, num_workers=1, shuffle=True, pin_memory=True)
+        DataLoader(val_subset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=False)
     )
 
     if save_indices:
