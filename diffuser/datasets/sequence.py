@@ -1,7 +1,7 @@
 from collections import namedtuple
 import numpy as np
 import torch
-import pdb
+import os
 
 from .preprocessing import get_preprocess_fn
 from .d4rl import load_environment, sequence_dataset
@@ -131,10 +131,20 @@ class ValueDataset(SequenceDataset):
         return value_batch
 
 
+def load_preprocessed_dataset(data_directory):
+    dataset = {}
+    for filename in os.listdir(data_directory):
+        if filename.endswith(".npy"):
+            key = filename[:-4]  # Remove .npy from the filename to get the key
+            dataset[key] = np.load(os.path.join(data_directory, filename))
+    return dataset
+
+
 class TrajectoryDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
+        dataset_dir="/home/ws/src/diffuser/logs/ur5_coppeliasim_full_path_goal/",
         env="hopper-medium-replay",
         horizon=64,
         normalizer="LimitsNormalizer",
@@ -157,23 +167,39 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         # Profile the code
         # profiler = cProfile.Profile()
         # profiler.enable()
+        fields_file = os.path.join(dataset_dir, f"{env}_fields.npy")
+        if os.path.exists(fields_file):
+            print("Loading preprocessed fields from .npy file.")
+            fields = np.load(fields_file, allow_pickle=True).item()
+        else:
+            print("Processing dataset and creating fields.")
+            itr = sequence_dataset(self.env, self.preprocess_fn)
+            fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
 
-        itr = sequence_dataset(env, self.preprocess_fn)
+            for i, episode in enumerate(itr):
+                fields.add_path(episode)
 
-        fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
+            fields.finalize()
+            # Save the processed fields to a .npy file
+            np.save(fields_file, fields)
+            print(f"Fields saved to {fields_file}")
 
-        for i, episode in enumerate(itr):
+        # itr = sequence_dataset(env, self.preprocess_fn)
 
-            fields.add_path(episode)
+        # fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
 
-        # profiler.disable()
-        # Analyze the profile
-        # stats = pstats.Stats(profiler)
-        # stats.strip_dirs()
-        # stats.sort_stats("cumulative")  # Sort by cumulative time
-        # stats.print_stats()
+        # for i, episode in enumerate(itr):
 
-        fields.finalize()
+        #     fields.add_path(episode)
+
+        # # profiler.disable()
+        # # Analyze the profile
+        # # stats = pstats.Stats(profiler)
+        # # stats.strip_dirs()
+        # # stats.sort_stats("cumulative")  # Sort by cumulative time
+        # # stats.print_stats()
+
+        # fields.finalize()
         self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields["path_lengths"])
         self.observation_dim = fields.observations.shape[-1]
         if use_actions:
