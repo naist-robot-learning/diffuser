@@ -32,7 +32,7 @@ env = CoppeliaGymFull()
 
 
 # ---------------------------------- loading ----------------------------------#
-diffusion_loadpath = f"diffusion/H48_T22_{args.dataset}"
+diffusion_loadpath = f"diffusion/H48_T20_{args.dataset}"
 diffusion_experiment = utils.load_diffusion(
     args.logbase, args.dataset, diffusion_loadpath, epoch=args.diffusion_epoch
 )
@@ -49,6 +49,8 @@ model_config = utils.Config(
     args.model,
     savepath=(args.savepath, "model_config.pkl"),
     horizon=args.horizon,
+    batch_size=args.batch_size,
+    action_dim=action_dim,
     transition_dim=observation_dim + action_dim,
     cond_dim=observation_dim,
     normalizer=dataset.normalizer,
@@ -80,9 +82,9 @@ policy = policy_config()
 # policy = Policy(diffusion, dataset.normalizer)
 
 # ---------------------------------- main loop ----------------------------------#
-
+failure_count = 0
 try_replan = False
-for i in range(0, 20):
+for i in range(0, 500):
     remove_str = "ur5_coppeliasim_full_"
     state_type = args.dataset[len(remove_str) :]
     observation, hand_pose = env.reset(state_type=state_type)
@@ -93,17 +95,20 @@ for i in range(0, 20):
     joint_position_l = []
     robot_hand_pose_l = []
     goal_pose_l = []
+    if i % 10 == 0 and i != 0:
+        print(f"Failed to reach goal pose {failure_count} times so far")
 
     for t in range(0, args.horizon):
-        print("t: ", t)
+        # print("t: ", t)
         state = observation.copy()
 
         ## can replan if desired, but the open-loop plans are good enough for maze2d
         ## that we really only need to plan once
         if t == 0 or try_replan:
+            print(f"Planning experiment #{i}")
             cond[0] = torch.tensor(observation).to("cuda")
             cond["hand_pose"] = torch.tensor(hand_pose).to("cuda")
-            print("observation: ", observation)
+            # print("observation: ", observation)
             # import ipdb; ipdb.set_trace()
             # action, samples = policy(cond, batch_size=args.batch_size)
             # action, samples = policy(cond, batch_size=args.batch_size, verbose=args.verbose)
@@ -114,38 +119,65 @@ for i in range(0, 20):
             )
             # actions = samples.actions[0]
             sequence = utils.to_np(samples.observations[0])
+            last_sequence = utils.to_np(samples.observations[-1])
 
             fullpath = join(args.savepath, f"{t}.png")
             # Create a plot of the actions over time
-
-            plt.plot(sequence[:, 0], label="q0")
-            plt.plot(sequence[:, 1], label="q1")
-            plt.plot(sequence[:, 2], label="q2")
-            plt.plot(sequence[:, 3], label="q3")
-            plt.plot(sequence[:, 4], label="q4")
-            plt.plot(sequence[:, 5], label="q5")
+            # plt.figure(1)
+            # plt.plot(sequence[:, 0], label="q0")
+            # plt.plot(sequence[:, 1], label="q1")
+            # plt.plot(sequence[:, 2], label="q2")
+            # plt.plot(sequence[:, 3], label="q3")
+            # plt.plot(sequence[:, 4], label="q4")
+            # plt.plot(sequence[:, 5], label="q5")
             # Check if sequence reaches goal pose
             goal_pose = torch.tensor(sequence[-1, 6:9]).to("cuda")
             last_q = torch.tensor(sequence[-1, 0:6]).unsqueeze(1).unsqueeze(2)
-            import ipdb
-
-            ipdb.set_trace()
             last_pose = ur5.fkine(last_q.to("cuda"))[..., :3]
             d = torch.linalg.norm(goal_pose - last_pose)
 
-            plt.xlabel("Time step")
-            plt.ylabel("Joint angle")
-            plt.title("Diffuser output")
-            plt.legend()
-            plt.show()
-            # if d > 0.01:
-            #     try_replan = True
-            #     t = -1
-            #     continue
-            # else:
-            #     try_replan = False
+            # plt.xlabel("Time step")
+            # plt.ylabel("Joint angle")
+            # plt.title("Diffuser output")
+            # plt.legend()
+            # # plt.show()
 
-            # renderer.composite(fullpath, samples.observations, ncol=1)
+            # plt.figure(2)
+            # plt.plot(last_sequence[:, 0], label="q0")
+            # plt.plot(last_sequence[:, 1], label="q1")
+            # plt.plot(last_sequence[:, 2], label="q2")
+            # plt.plot(last_sequence[:, 3], label="q3")
+            # plt.plot(last_sequence[:, 4], label="q4")
+            # plt.plot(last_sequence[:, 5], label="q5")
+            # plt.xlabel("Time step")
+            # plt.ylabel("Joint angle")
+            # plt.title("Diffuser output")
+            # plt.legend()
+            # plt.show()
+
+            if d > 0.1:
+                try_replan = True
+                t = -1
+                failure_count += 1
+                # Create a plot of the actions over time
+                plt.figure(i)
+                plt.plot(sequence[:, 0], label="q0")
+                plt.plot(sequence[:, 1], label="q1")
+                plt.plot(sequence[:, 2], label="q2")
+                plt.plot(sequence[:, 3], label="q3")
+                plt.plot(sequence[:, 4], label="q4")
+                plt.plot(sequence[:, 5], label="q5")
+
+                plt.xlabel("Time step")
+                plt.ylabel("Joint angle")
+                plt.title("Diffuser output")
+                plt.legend()
+                plt.savefig(f"failure{i}.png")
+                continue
+            else:
+                try_replan = False
+
+        # renderer.composite(fullpath, samples.observations, ncol=1)
         # import ipdb; ipdb.set_trace()
         # next_observation, reward, terminal, _ = env.step(actions[t, :])
         cond["hand_pose"] = utils.to_np(cond["hand_pose"])
@@ -154,7 +186,7 @@ for i in range(0, 20):
         robot_hand_pose_l.append(cond["hand_pose"])
         goal_pose_l.append(sequence[t, 6:13])
         # next_observation, reward, terminal, _ = env.step(sequence[t,0:6])
-        time.sleep(0.010)
+        time.sleep(0.001)
         total_reward = reward
         # score = env.get_normalized_score(total_reward)
         score = total_reward
@@ -198,9 +230,9 @@ while True:
     if not exists(filename):
         np.savez(
             filename,
-            joint_position=joint_position,
-            robot_hand_pose=robot_hand_pose,
-            goal_pose=goal_pose,
+            joint_position=joint_position_l,
+            robot_hand_pose=robot_hand_pose_l,
+            goal_pose=goal_pose_l,
         )
         print(f"Arrays saved to: {filename}")
         break

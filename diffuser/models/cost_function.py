@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
-from diffuser.models.costs import CostGPTrajectoryPositionOnlyWrapper, ReflectedMassCost
+from diffuser.models.costs import (
+    CostGPTrajectoryPositionOnlyWrapper,
+    ReflectedMassCost,
+    GoalPoseCost,
+)
 
 # Trajectory vector (name/parameter):
 # 0  - dq1       action angle (rad)
@@ -36,6 +40,8 @@ class CostFn(nn.Module):
     def __init__(
         self,
         horizon: int,
+        batch_size: int,
+        action_dim: int,
         transition_dim: int,
         cond_dim: int,
         normalizer: object,
@@ -45,11 +51,18 @@ class CostFn(nn.Module):
         super().__init__()
         self.transition_dim = transition_dim
         self._normalizer = normalizer
-
-        # self.q_des = torch.zeros((64, transition_dim, horizon), requires_grad=False)
-
-        # self.q_des[:,14,:] = 2 #m/s
-        # self.q_des.to("cuda")
+        tensor_args = {"device": "cuda", "dtype": torch.float32}
+        trajectory_duration = 5.0
+        dt = trajectory_duration / horizon
+        self._smoothness_cost = CostGPTrajectoryPositionOnlyWrapper(
+            n_dof=6, n_support_points=horizon, dt=dt, sigma_gp=1.0, tensor_args=tensor_args
+        )
+        action_dim = 0
+        self._reflected_mass_cost = ReflectedMassCost(action_dim, batch_size, horizon)
+        self._goal_pose_cost = GoalPoseCost()
+        self._Q1 = 0.0001
+        self._Q2 = 1.5
+        self._Q3 = 1.0
 
     def forward(
         self,
@@ -61,26 +74,12 @@ class CostFn(nn.Module):
         x : [ batch x horizon x transition ]
         """
         horizon = x.shape[1]
-        tensor_args = {"device": "cuda", "dtype": torch.float32}
 
         x = self._normalizer.unnormalize(x, "observations")
-        if self.transition_dim == cond[0].shape[1]:
-            action_dim = 0
-        else:
-            action_dim = self.transition_dim - cond[0].shape[1]
 
-        trajectory_duration = 5.0
-        dt = trajectory_duration / horizon
-
-        cost_smoothness = CostGPTrajectoryPositionOnlyWrapper(
-            n_dof=6, n_support_points=horizon, dt=dt, sigma_gp=1.0, tensor_args=tensor_args
-        )
-
-        cost_reflectedmass = ReflectedMassCost(action_dim)
-        Q1 = 1.0
-        Q2 = 1.0
-        cs_val = cost_smoothness(x[:, :, :6])
-        crm_val = cost_reflectedmass(x, cond)
-        final_cost = Q1 * cs_val + Q2 * crm_val
+        cs_val = self._smoothness_cost(x[:, :, :6])
+        crm_val = self._reflected_mass_cost(x, cond)
+        cgp_val = self._goal_pose_cost(x)
+        final_cost = self._Q1 * cs_val + self._Q2 * crm_val + self._Q3 * cgp_val
 
         return final_cost

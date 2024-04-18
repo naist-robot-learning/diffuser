@@ -155,8 +155,12 @@ class CostGPTrajectoryPositionOnlyWrapper(CostGPTrajectory):
 
 
 class ReflectedMassCost:
-    def __init__(self, action_dim) -> None:
+    def __init__(self, action_dim, batch_size, horizon) -> None:
         self.action_dim = action_dim
+        self.batch_size = batch_size
+        self.horizon = horizon
+        # self._cost = torch.empty((batch_size, horizon)).to("cuda")
+        # self._u = torch.empty((batch_size * horizon, 3, 1), dtype=torch.float32).to("cuda")
 
     def __call__(self, x: torch.tensor, cond: dict) -> torch.tensor:
         """computes reflected mass cost in the direction of the hand_pose found in
@@ -171,22 +175,46 @@ class ReflectedMassCost:
         Returns:
             torch.tensor: cost in batch shape
         """
-        batch_size, horizon, transition_dim = x.shape
+        # import ipdb
+
+        # ipdb.set_trace()
         x = einops.rearrange(x, "b h t -> b t h")
-        cost = torch.empty((batch_size, horizon)).to("cuda")
-        u = torch.empty((batch_size * horizon, 3, 1), dtype=torch.float32).to("cuda")
-        # u[:,0] = 1/(2)**(1/2); u[:,1] = 0; u[:,2] = 1/(2)**(1/2)
-        # u[:,0] = 1; u[:,1] = 0; u[:,2] = 0
-        # import ipdb; ipdb.set_trace()
-        x_ = einops.rearrange(x, "b t h -> t (b h)").to("cuda")
+        x_ = einops.rearrange(x, "b t h -> t (b h)")
         x_tcp = fkine(x_[self.action_dim : self.action_dim + 6, :])[:, :3].unsqueeze(2)
-        # hand_idx = action_dim + 6 + 3
-        # x_hand = x_[hand_idx : hand_idx + 3, :].permute(1, 0).unsqueeze(2)
-        x_hand = cond["hand_pose"][:, :3].unsqueeze(2).repeat(horizon, 1, 1)
+        x_hand = cond["hand_pose"][:, :3].unsqueeze(2).repeat(self.horizon, 1, 1)
+
         ## compute normalized direction vector from x_tcp to x_hand
         u = (x_hand - x_tcp) / torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
         cost = compute_reflected_mass(x[:, self.action_dim : self.action_dim + 6, :], u)
+
         # cost = compute_reflected_mass(x[:,:6,:], u)
         final_cost = cost.sum(axis=1)
         # import ipdb; ipdb.set_trace()
+        return final_cost
+
+
+class GoalPoseCost:
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, x: torch.tensor) -> torch.tensor:
+        """computes cost of reaching the goal pose
+
+        Args:
+            x (torch.tensor): trajectories. Could include: joint positions,
+                                                        tcp position,
+                                                        hand position
+
+        Returns:
+            torch.tensor: cost in batch shape
+        """
+        batch_size, horizon, transition_dim = x.shape
+        # cost = torch.empty((batch_size, horizon)).to("cuda")
+        x_ = einops.rearrange(x[:, -3:, :6], "b h t-> t (b h)").to("cuda")
+        x_tcp = fkine(x_)[:, :3]
+        x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=3)
+        x_goal = x[:, -3:, 6:9]
+        cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2)
+        final_cost = cost.sum(axis=1)
+
         return final_cost

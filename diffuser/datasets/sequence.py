@@ -150,7 +150,7 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         normalizer="LimitsNormalizer",
         preprocess_fns=[],
         max_path_length=None,
-        max_n_episodes=10000,
+        max_n_episodes=100000,
         termination_penalty=0,
         use_padding=True,
         use_actions=True,

@@ -2,7 +2,6 @@ import os
 import collections
 import numpy as np
 import gym
-import pdb
 import h5py
 
 from contextlib import (
