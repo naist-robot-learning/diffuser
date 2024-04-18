@@ -63,7 +63,7 @@ base = {
         "ema_decay": 0.995,
         "save_freq": 1000,
         "sample_freq": 1000,
-        "n_saves": 51,
+        "n_saves": 100,
         "save_parallel": False,
         "n_reference": 50,
         "n_samples": 10,
@@ -75,7 +75,7 @@ base = {
         "model": "models.cost_function.CostFn",  # New Cost Fn !
         "guide": "sampling.guides.ValueGuide",
         "policy": "sampling.policies.GuidedPolicy",
-        "batch_size": 64,
+        "batch_size": 256,
         "preprocess_fns": [],
         "device": "cuda",
         ## sample_kwargs
@@ -113,7 +113,7 @@ base = {
 ur5_coppeliasim_full_path_goal = {
     "diffusion": {
         "horizon": 48,  # longest path in dataset
-        "n_diffusion_steps": 22,
+        "n_diffusion_steps": 20,
         "attention": True,
         "use_actions": False,
     },
@@ -121,8 +121,8 @@ ur5_coppeliasim_full_path_goal = {
         "horizon": 48,
         "n_diffusion_steps": 20,
         "use_actions": False,
-        "scale": 0.00000000001,
-        "t_stopgrad": 4,
+        "scale": 1.5,
+        "t_stopgrad": 0,
     },
 }
 ur5_coppeliasim_full_path_goal_hand = {
