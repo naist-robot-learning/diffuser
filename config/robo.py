@@ -75,7 +75,7 @@ base = {
         "model": "models.cost_function.CostFn",  # New Cost Fn !
         "guide": "sampling.guides.ValueGuide",
         "policy": "sampling.policies.GuidedPolicy",
-        "batch_size": 256,
+        "batch_size": 64,
         "preprocess_fns": [],
         "device": "cuda",
         ## sample_kwargs
@@ -121,7 +121,7 @@ ur5_coppeliasim_full_path_goal = {
         "horizon": 48,
         "n_diffusion_steps": 20,
         "use_actions": False,
-        "scale": 1.5,
+        "scale": 0.1,
         "t_stopgrad": 0,
     },
 }

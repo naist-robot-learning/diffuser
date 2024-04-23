@@ -1,7 +1,6 @@
 import json
 import numpy as np
 from os.path import join, exists
-import ipdb
 import time
 import torch
 
@@ -84,17 +83,18 @@ policy = policy_config()
 # ---------------------------------- main loop ----------------------------------#
 failure_count = 0
 try_replan = False
-for i in range(0, 500):
+joint_position_l = []
+robot_hand_pose_l = []
+goal_pose_l = []
+values_l = []
+for i in range(0, 100):
     remove_str = "ur5_coppeliasim_full_"
     state_type = args.dataset[len(remove_str) :]
-    observation, hand_pose = env.reset(state_type=state_type)
+    observation, goal_pose, hand_pose = env.reset(state_type=state_type)
     ## observations for rendering
     rollout = [observation.copy()]
     cond = {}
     total_reward = 0
-    joint_position_l = []
-    robot_hand_pose_l = []
-    goal_pose_l = []
     if i % 10 == 0 and i != 0:
         print(f"Failed to reach goal pose {failure_count} times so far")
 
@@ -108,6 +108,7 @@ for i in range(0, 500):
             print(f"Planning experiment #{i}")
             cond[0] = torch.tensor(observation).to("cuda")
             cond["hand_pose"] = torch.tensor(hand_pose).to("cuda")
+            cond["goal_pose"] = torch.tensor(goal_pose).to("cuda")
             # print("observation: ", observation)
             # import ipdb; ipdb.set_trace()
             # action, samples = policy(cond, batch_size=args.batch_size)
@@ -118,7 +119,13 @@ for i in range(0, 500):
                 verbose=args.verbose,
             )
             # actions = samples.actions[0]
-            sequence = utils.to_np(samples.observations[0])
+            if args.scale == 0:
+                randint = np.random.randint(64, size=1)[0]
+                sequence = utils.to_np(samples.observations[randint])
+                value = utils.to_np(samples.values[randint])
+            else:
+                sequence = utils.to_np(samples.observations[0])
+                value = utils.to_np(samples.values[0])
             last_sequence = utils.to_np(samples.observations[-1])
 
             fullpath = join(args.savepath, f"{t}.png")
@@ -182,11 +189,8 @@ for i in range(0, 500):
         # next_observation, reward, terminal, _ = env.step(actions[t, :])
         cond["hand_pose"] = utils.to_np(cond["hand_pose"])
         next_observation, reward, terminal, _ = env.step(sequence[t, 0:6])
-        joint_position_l.append(next_observation[0:6])
-        robot_hand_pose_l.append(cond["hand_pose"])
-        goal_pose_l.append(sequence[t, 6:13])
         # next_observation, reward, terminal, _ = env.step(sequence[t,0:6])
-        time.sleep(0.001)
+        time.sleep(0.01) #0.004 250Hz
         total_reward = reward
         # score = env.get_normalized_score(total_reward)
         score = total_reward
@@ -218,9 +222,10 @@ for i in range(0, 500):
             break
 
         observation = next_observation
-    # import ipdb
-
-    # ipdb.set_trace()
+    joint_position_l.append([sequence[:,0:6]])
+    robot_hand_pose_l.append([cond["hand_pose"]])
+    goal_pose_l.append([sequence[:, 6:13]])
+    values_l.append([value])
 
 # logger.finish(t, env.max_episode_steps, score=score, value=0)
 index = 1
@@ -233,6 +238,7 @@ while True:
             joint_position=joint_position_l,
             robot_hand_pose=robot_hand_pose_l,
             goal_pose=goal_pose_l,
+            values=values_l,
         )
         print(f"Arrays saved to: {filename}")
         break

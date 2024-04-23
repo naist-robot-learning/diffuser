@@ -60,9 +60,9 @@ class CostFn(nn.Module):
         action_dim = 0
         self._reflected_mass_cost = ReflectedMassCost(action_dim, batch_size, horizon)
         self._goal_pose_cost = GoalPoseCost()
-        self._Q1 = 0.0001
-        self._Q2 = 1.5
-        self._Q3 = 1.0
+        self._Q1 = 0.0 # 0.0001
+        self._Q2 = 0.0    # 1.5
+        self._Q3 = 1.0    # 5.0
 
     def forward(
         self,
@@ -76,10 +76,22 @@ class CostFn(nn.Module):
         horizon = x.shape[1]
 
         x = self._normalizer.unnormalize(x, "observations")
-
-        cs_val = self._smoothness_cost(x[:, :, :6])
-        crm_val = self._reflected_mass_cost(x, cond)
-        cgp_val = self._goal_pose_cost(x)
+        
+        if self._Q1:
+            cs_val = self._smoothness_cost(x[:, :, :6])
+        else:
+            cs_val = 0
+            
+        if self._Q2:
+            crm_val = self._reflected_mass_cost(x, cond)
+        else:
+            crm_val = 0
+            
+        if self._Q3:
+            cgp_val = self._goal_pose_cost(x, cond)
+        else:
+            cgp_val = 0
+            
         final_cost = self._Q1 * cs_val + self._Q2 * crm_val + self._Q3 * cgp_val
 
         return final_cost

@@ -166,9 +166,9 @@ def apply_conditioning(x, conditions, action_dim):
             x[:, t, action_dim:] = val.clone()
             # x[:, t, :action_dim] = val[:,:6].clone()
             # Check if x state dimension is larger than 12
-            if cnt == 0:
-                x[:, :, 6:] = val[:, None, 6:].clone()
-                cnt += 1
+            # if cnt == 0:
+            #     x[:, :, 6:] = val[:, None, 6:].clone()
+            #     cnt += 1
     return x
 
 

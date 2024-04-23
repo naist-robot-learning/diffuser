@@ -197,7 +197,7 @@ class GoalPoseCost:
     def __init__(self) -> None:
         pass
 
-    def __call__(self, x: torch.tensor) -> torch.tensor:
+    def __call__(self, x: torch.tensor, cond: dict) -> torch.tensor:
         """computes cost of reaching the goal pose
 
         Args:
@@ -213,8 +213,8 @@ class GoalPoseCost:
         x_ = einops.rearrange(x[:, -3:, :6], "b h t-> t (b h)").to("cuda")
         x_tcp = fkine(x_)[:, :3]
         x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=3)
-        x_goal = x[:, -3:, 6:9]
-        cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2)
+        x_goal = cond["goal_pose"][:, :3].unsqueeze(1).repeat(1, 3, 1)
+        cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2) 
         final_cost = cost.sum(axis=1)
 
         return final_cost
