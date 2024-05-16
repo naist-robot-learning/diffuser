@@ -17,12 +17,12 @@ class ValueGuide(nn.Module):
         self.max_grad_norm = max_grad_value
 
     def forward(self, x, cond, t):
-        output = self.model(x, cond, t)
-        return output.squeeze(dim=-1)
+        output, output_measured = self.model(x, cond, t)
+        return output.squeeze(dim=-1), output_measured.squeeze(dim=-1)
 
     def gradients(self, x, *args):
         x.requires_grad_()
-        y = self(x, *args)
+        y, y_measured = self(x, *args)
         # start = time.time()
         # print("x.device: ", x.device)
         grad = torch.autograd.grad([y.sum()], [x], retain_graph=True)[0]
@@ -34,14 +34,14 @@ class ValueGuide(nn.Module):
         grad_cost_clipped = self.clip_gradient(grad)
         # Clipp grad
         grad_cost_clipped[..., 0, :] = 0
-        grad_cost_clipped[..., -1, :] = 0
+        #grad_cost_clipped[..., -1, :] = 0
         x.detach()
         # import ipdb;ipdb.set_trace()
 
         # Gradient ascent
-        grad = -1.0 * grad_cost_clipped
-        return y, grad
-
+        #grad = -1.0 * grad_cost_clipped
+        return y, grad, y_measured
+    
     def clip_gradient(self, grad):
         if self.clip_grad:
             if self.clip_grad_rule == "norm":

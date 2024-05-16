@@ -13,7 +13,7 @@ from .helpers import (
     Losses,
 )
 
-Sample = namedtuple("Sample", "trajectories values chains")
+Sample = namedtuple("Sample", "trajectories values values_measured chains")
 
 
 @torch.no_grad()
@@ -245,7 +245,7 @@ class GaussianDiffusion(nn.Module):
         for i in reversed(range(0, self.n_timesteps)):
 
             t = make_timesteps(batch_size, i, device)
-            x, values = sample_fn(self, x, cond, t, **sample_kwargs)
+            x, values, values_measured  = sample_fn(self, x, cond, t, **sample_kwargs)
             x = apply_conditioning(x, cond, self.action_dim)
             progress.update({"t": i, "vmin": values.min().item(), "vmax": values.max().item()})
 
@@ -256,7 +256,7 @@ class GaussianDiffusion(nn.Module):
         x, values = sort_by_values(x, values)
         if return_diffusion:
             diffusion = torch.stack(diffusion, dim=1)
-        return Sample(x, values, diffusion)
+        return Sample(x, values, values_measured, diffusion)
 
     @torch.no_grad()
     def conditional_sample(self, cond, horizon=None, **sample_kwargs):

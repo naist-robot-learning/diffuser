@@ -210,10 +210,11 @@ class GoalPoseCost:
         """
         batch_size, horizon, transition_dim = x.shape
         # cost = torch.empty((batch_size, horizon)).to("cuda")
-        x_ = einops.rearrange(x[:, -3:, :6], "b h t-> t (b h)").to("cuda")
+        '''.unsqueeze(dim=1)'''
+        x_ = einops.rearrange(x[:, -1, :6].unsqueeze(dim=1), "b h t-> t (b h)").to("cuda")
         x_tcp = fkine(x_)[:, :3]
-        x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=3)
-        x_goal = cond["goal_pose"][:, :3].unsqueeze(1).repeat(1, 3, 1)
+        x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=1)
+        x_goal = cond["goal_pose"][:, :3].unsqueeze(1).repeat(1, 1, 1)
         cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2) 
         final_cost = cost.sum(axis=1)
 

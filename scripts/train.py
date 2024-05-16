@@ -6,7 +6,7 @@ import diffuser.utils as utils
 
 
 class Parser(utils.Parser):
-    dataset: str = "ur5_coppeliasim_full_path_goal"
+    dataset: str = "ur5_coppeliasim_full_path"
     config: str = "config.robo"
 
 

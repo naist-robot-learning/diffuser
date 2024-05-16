@@ -28,7 +28,7 @@ def n_step_guided_p_sample(
         # print("n_guide_steps: ", n_guide_steps)
         # print("antes de grad: ", t)
         # start = time.time()
-        x, y = guide_gradient_steps(
+        x, y, y_measured = guide_gradient_steps(
             x,
             cond=cond,
             t=t,
@@ -63,7 +63,7 @@ def n_step_guided_p_sample(
     noise = torch.randn_like(x)
     noise[t == 0] = 0
 
-    return model_mean + model_std * noise, y
+    return model_mean + model_std * noise, y, y_measured
 
 
 def guide_gradient_steps(
@@ -82,7 +82,7 @@ def guide_gradient_steps(
 ):
     for _ in range(n_guide_steps):
         with torch.enable_grad():
-            y, grad_scaled = guide.gradients(x, cond, t)
+            y, grad_scaled, y_measured = guide.gradients(x, cond, t)
 
         if scale_grad_by_std:
             grad_scaled = model_var * grad_scaled
@@ -90,4 +90,4 @@ def guide_gradient_steps(
         grad_scaled[t < t_stopgrad] = 0
         x = x + scale * grad_scaled
         x = apply_conditioning(x, cond, action_dim)
-    return x, y
+    return x, y, y_measured

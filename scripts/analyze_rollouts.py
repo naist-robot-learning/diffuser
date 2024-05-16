@@ -27,7 +27,7 @@ def compute_metric_on_arrays(directory):
 
 
 # Directory containing .npz files
-directory = "logs/ur5_coppeliasim_full_path_goal/plans/release_H48_T20_LimitsNormalizer_b64_condFalse/0/"  # Current directory
+directory = "logs/ur5_coppeliasim_full_path/plans/release_H48_T20_LimitsNormalizer_b64_condFalse/0/"  # Current directory
 
 
 # Compute metric on arrays in .npz files in the directory

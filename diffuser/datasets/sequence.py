@@ -144,7 +144,7 @@ class TrajectoryDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        dataset_dir="/home/ws/src/diffuser/logs/ur5_coppeliasim_full_path_goal/",
+        dataset_dir="/home/ws/src/diffuser/logs/ur5_coppeliasim_full_path/",
         env="hopper-medium-replay",
         horizon=64,
         normalizer="LimitsNormalizer",

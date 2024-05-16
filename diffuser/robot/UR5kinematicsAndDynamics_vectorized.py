@@ -191,10 +191,10 @@ def fkine(q):
     in compact representation [x, y, z, roll, pitch, yaw]
 
     Args:
-        q (6x1 torch tensor): joint angles
+        q (6x(B H) torch tensor): joint angles
 
     Returns:
-        compact (6x1 torch tensor): [x, y, z, roll, pitch, yaw]
+        compact (6x(B H) torch tensor): [x, y, z, roll, pitch, yaw]
 
     """
     H = compute_fk(q)
@@ -459,3 +459,23 @@ def compute_reflected_mass(q, u):
     mu = einops.rearrange(mu, "(b h) -> b h", b=b, h=h)
 
     return mu
+
+def compute_kinetic_energy_matrix(q):
+    """Computes the reflected mass of the UR5 manipulator
+    along some direction u
+
+    Args:
+        q (Bx6xH) torch tensor): joint angles
+        u (6x(B H) torch tensor): direction vector
+
+    Returns:
+        mu (float): reflected mass along u
+    """
+    b, t, h = q.shape
+    q = einops.rearrange(q, "b t h -> t (b h)").to("cuda")
+    J = compute_analytical_jacobian(q)
+    Mq = compute_inertia_matrix(q)
+    J_T = J.permute(0, 2, 1)
+    M_x_inv = (J @ torch.linalg.solve(Mq, J_T))[:, :3, :3]
+    return M_x_inv
+    

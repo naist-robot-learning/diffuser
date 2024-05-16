@@ -8,7 +8,7 @@ from diffuser.datasets.preprocessing import get_policy_preprocess_fn
 
 
 # Trajectories = namedtuple("Trajectories", "actions observations values")
-Trajectories = namedtuple("Trajectories", "observations values")
+Trajectories = namedtuple("Trajectories", "observations values values_measured")
 
 
 class GuidedPolicy:
@@ -41,7 +41,7 @@ class GuidedPolicy:
         observations = self.normalizer.unnormalize(normed_observations, "observations")
 
         # trajectories = Trajectories(actions, observations, samples.values)
-        trajectories = Trajectories(observations, samples.values)
+        trajectories = Trajectories(observations, samples.values, samples.values_measured)
         # return action, trajectories
         return trajectories
 

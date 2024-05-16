@@ -17,7 +17,7 @@ import diffuser.robot.UR5kinematicsAndDynamics_vectorized as ur5
 
 
 class Parser(utils.Parser):
-    dataset: str = "ur5_coppeliasim_full_path_goal"
+    dataset: str = "ur5_coppeliasim_full_path"
     config: str = "config.robo"
 
 
@@ -51,6 +51,7 @@ model_config = utils.Config(
     batch_size=args.batch_size,
     action_dim=action_dim,
     transition_dim=observation_dim + action_dim,
+    test_cost=args.test_cost,
     cond_dim=observation_dim,
     normalizer=dataset.normalizer,
     # dim_mults=args.dim_mults,
@@ -87,7 +88,7 @@ joint_position_l = []
 robot_hand_pose_l = []
 goal_pose_l = []
 values_l = []
-for i in range(0, 100):
+for i in range(0, 10):
     remove_str = "ur5_coppeliasim_full_"
     state_type = args.dataset[len(remove_str) :]
     observation, goal_pose, hand_pose = env.reset(state_type=state_type)
@@ -108,7 +109,7 @@ for i in range(0, 100):
             print(f"Planning experiment #{i}")
             cond[0] = torch.tensor(observation).to("cuda")
             cond["hand_pose"] = torch.tensor(hand_pose).to("cuda")
-            cond["goal_pose"] = torch.tensor(goal_pose).to("cuda")
+            cond["goal_pose"] = torch.tensor(goal_pose, device='cuda')
             # print("observation: ", observation)
             # import ipdb; ipdb.set_trace()
             # action, samples = policy(cond, batch_size=args.batch_size)
@@ -119,13 +120,13 @@ for i in range(0, 100):
                 verbose=args.verbose,
             )
             # actions = samples.actions[0]
-            if args.scale == 0:
-                randint = np.random.randint(64, size=1)[0]
-                sequence = utils.to_np(samples.observations[randint])
-                value = utils.to_np(samples.values[randint])
-            else:
-                sequence = utils.to_np(samples.observations[0])
-                value = utils.to_np(samples.values[0])
+            # if args.scale == 0:
+            #     randint = np.random.randint(64, size=1)[0]
+            #     sequence = utils.to_np(samples.observations[randint])
+            #     value = utils.to_np(samples.values_measured[randint])
+            # else:
+            sequence = utils.to_np(samples.observations[0])
+            value = utils.to_np(samples.values_measured[0])
             last_sequence = utils.to_np(samples.observations[-1])
 
             fullpath = join(args.savepath, f"{t}.png")
@@ -138,10 +139,12 @@ for i in range(0, 100):
             # plt.plot(sequence[:, 4], label="q4")
             # plt.plot(sequence[:, 5], label="q5")
             # Check if sequence reaches goal pose
-            goal_pose = torch.tensor(sequence[-1, 6:9]).to("cuda")
+            goal_pose_x = cond["goal_pose"][:3]
+
             last_q = torch.tensor(sequence[-1, 0:6]).unsqueeze(1).unsqueeze(2)
             last_pose = ur5.fkine(last_q.to("cuda"))[..., :3]
-            d = torch.linalg.norm(goal_pose - last_pose)
+            d = torch.linalg.norm(goal_pose_x - last_pose)
+            print(f"*******Trajectory {i} with distance: {d}")
 
             # plt.xlabel("Time step")
             # plt.ylabel("Joint angle")
@@ -162,7 +165,7 @@ for i in range(0, 100):
             # plt.legend()
             # plt.show()
 
-            if d > 0.1:
+            if d > 0.032:
                 try_replan = True
                 t = -1
                 failure_count += 1
@@ -188,9 +191,15 @@ for i in range(0, 100):
         # import ipdb; ipdb.set_trace()
         # next_observation, reward, terminal, _ = env.step(actions[t, :])
         cond["hand_pose"] = utils.to_np(cond["hand_pose"])
+        cond["goal_pose"] = utils.to_np(cond["goal_pose"])
         next_observation, reward, terminal, _ = env.step(sequence[t, 0:6])
         # next_observation, reward, terminal, _ = env.step(sequence[t,0:6])
-        time.sleep(0.01) #0.004 250Hz
+        if t== args.horizon-1:
+            time.sleep(1.0)
+        else:
+            time.sleep(0.004)
+            
+         #0.004 250Hz
         total_reward = reward
         # score = env.get_normalized_score(total_reward)
         score = total_reward
@@ -224,8 +233,10 @@ for i in range(0, 100):
         observation = next_observation
     joint_position_l.append([sequence[:,0:6]])
     robot_hand_pose_l.append([cond["hand_pose"]])
-    goal_pose_l.append([sequence[:, 6:13]])
+    goal_pose_l.append([cond["goal_pose"]])
+    # goal_pose_l.append([sequence[:, 6:13]])
     values_l.append([value])
+    
 
 # logger.finish(t, env.max_episode_steps, score=score, value=0)
 index = 1
