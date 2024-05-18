@@ -110,13 +110,8 @@ exp_number = 0
 q, goal_pose, hand= extract_trajectory(directory, exp_number)
 
 # Define joint angles (in radians)
-#theta = [0, np.pi/4, np.pi/2, np.pi/4, np.pi/3, np.pi/6]
 traj = 7
 theta = np.reshape(q[traj], (48,6))
-
-#theta[0][-3] = theta[0][-3] + np.pi/4 
-#theta = np.zeros((48,6))
-
 
 # Compute trajectory in Cartesian space
 x = compute_trajectory_in_cartesian(theta)
