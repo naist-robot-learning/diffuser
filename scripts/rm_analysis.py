@@ -13,7 +13,7 @@ def extract_trajectory(directory, exp_number):
         npz_data = np.load(os.path.join(directory, npz_file))
         q = npz_data["joint_position"]  #Trials x horizon x transition 100 x 48 x 6
         goal = npz_data['goal_pose']
-        hand = npz_data['robot_hand_pose']
+        hand = npz_data['hand_pose']
         npz_data.close()
         
         if cnt==exp_number:

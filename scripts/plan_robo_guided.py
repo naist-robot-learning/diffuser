@@ -85,10 +85,10 @@ policy = policy_config()
 failure_count = 0
 try_replan = False
 joint_position_l = []
-robot_hand_pose_l = []
+hand_pose_l = []
 goal_pose_l = []
 values_l = []
-for i in range(0, 10):
+for i in range(0, 50):
     remove_str = "ur5_coppeliasim_full_"
     state_type = args.dataset[len(remove_str) :]
     observation, goal_pose, hand_pose = env.reset(state_type=state_type)
@@ -232,7 +232,7 @@ for i in range(0, 10):
 
         observation = next_observation
     joint_position_l.append([sequence[:,0:6]])
-    robot_hand_pose_l.append([cond["hand_pose"]])
+    hand_pose_l.append([cond["hand_pose"]])
     goal_pose_l.append([cond["goal_pose"]])
     # goal_pose_l.append([sequence[:, 6:13]])
     values_l.append([value])
@@ -247,7 +247,7 @@ while True:
         np.savez(
             filename,
             joint_position=joint_position_l,
-            robot_hand_pose=robot_hand_pose_l,
+            hand_pose=hand_pose_l,
             goal_pose=goal_pose_l,
             values=values_l,
         )

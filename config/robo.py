@@ -123,7 +123,7 @@ ur5_coppeliasim_full_path = {
         "use_actions": False,
         "scale": 0.0001,  #1.85 for only pose cost
         "t_stopgrad": 0,
-        "test_cost": "Q1", #Choose Q1 or Q2
+        "test_cost": "_", #Choose Q1 or Q2
     },
 }
 ur5_coppeliasim_full_path_goal = {

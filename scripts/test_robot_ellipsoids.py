@@ -111,7 +111,7 @@ q, goal_pose, hand= extract_trajectory(directory, exp_number)
 
 # Define joint angles (in radians)
 #theta = [0, np.pi/4, np.pi/2, np.pi/4, np.pi/3, np.pi/6]
-traj = 3
+traj = 7
 theta = np.reshape(q[traj], (48,6))
 
 #theta[0][-3] = theta[0][-3] + np.pi/4 
@@ -213,7 +213,7 @@ ax.view_init(elev=10, azim=135)  # Adjust elevation and azimuth as desired
 # Create animation
 ani = FuncAnimation(fig, update_plot, frames=48, fargs=(line, line2, scatter, quiver), interval=48, blit=False)
 
-ani.save('robot_animation.gif', writer='pillow', fps=30)
+ani.save('robot_animation3.gif', writer='pillow', fps=30)
 
 # Show plot
 plt.axis('off')
