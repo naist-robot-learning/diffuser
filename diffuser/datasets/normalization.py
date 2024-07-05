@@ -23,6 +23,7 @@ class DatasetNormalizer:
         self.normalizers = {}
         for key, val in dataset.items():
             try:
+                print(f'Normalizer for {key}: \n', normalizer(val))
                 self.normalizers[key] = normalizer(val)
             except:
                 print(f'[ utils/normalization ] Skipping {key} | {normalizer}')
@@ -133,9 +134,9 @@ class GaussianNormalizer(Normalizer):
         super().__init__(*args, **kwargs)
         self.means = self.X.mean(axis=0)
         self.stds = self.X.std(axis=0)
-        if self.X.shape[1]>6:
-            self.stds[8:] = torch.tensor([2.06590886e-03, 1.30926096e-03, 
-                                          1.30926096e-03, 1.51827996e-16, 1.51827996e-16])
+        # if self.X.shape[1]>7:
+        #     self.stds[8:] = torch.tensor([2.06590886e-03, 1.30926096e-03, 
+        #                                   1.30926096e-03, 1.51827996e-16, 1.51827996e-16])
         self.z = 1
 
     def __repr__(self):

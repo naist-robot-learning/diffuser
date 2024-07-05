@@ -144,7 +144,7 @@ class TrajectoryDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        dataset_dir="/home/ws/src/diffuser/logs/ur5_coppeliasim_full_path_goal/",  #ToDo: remove absolute directory
+        dataset_dir="/home/ws/src/diffuser/logs/kuka_coppeliasim_full_path/",  #ToDo: remove absolute directory
         env="hopper-medium-replay",
         horizon=64,
         normalizer="LimitsNormalizer",
@@ -167,9 +167,10 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         # Profile the code
         # profiler = cProfile.Profile()
         # profiler.enable()
+        print("Dataset directory: ", dataset_dir)
         fields_file = os.path.join(dataset_dir, f"{env}_fields.npy")
         if os.path.exists(fields_file):
-            print("Loading preprocessed fields from .npy file.")
+            print(f'Loading preprocessed fields from {fields_file}.')
             fields = np.load(fields_file, allow_pickle=True).item()
         else:
             print("Processing dataset and creating fields.")

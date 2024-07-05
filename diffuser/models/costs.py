@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from diffuser.robot.UR5kinematicsAndDynamics_vectorized import compute_reflected_mass, fkine
+from diffuser.robot.KUKALWR4KinematicsAndDynamics_vectorized import compute_reflected_mass, fkine
 import einops
 import numpy as np
 import torch
@@ -162,7 +162,7 @@ class ReflectedMassCost:
         # self._cost = torch.empty((batch_size, horizon)).to("cuda")
         # self._u = torch.empty((batch_size * horizon, 3, 1), dtype=torch.float32).to("cuda")
 
-    def __call__(self, x: torch.tensor, cond: dict) -> torch.tensor:
+    def __call__(self, x: torch.tensor, target_pose: torch.tensor) -> torch.tensor:
         """computes reflected mass cost in the direction of the hand_pose found in
         cond["hand_pose"]
 
@@ -175,21 +175,18 @@ class ReflectedMassCost:
         Returns:
             torch.tensor: cost in batch shape
         """
-        # import ipdb
-
-        # ipdb.set_trace()
+        n_dof = 7
         x = einops.rearrange(x, "b h t -> b t h")
         x_ = einops.rearrange(x, "b t h -> t (b h)")
-        x_tcp = fkine(x_[self.action_dim : self.action_dim + 6, :])[:, :3].unsqueeze(2)
-        x_hand = cond["hand_pose"][:, :3].unsqueeze(2).repeat(self.horizon, 1, 1)
+        x_tcp = fkine(x_[self.action_dim : self.action_dim + n_dof, :])[:, :3].unsqueeze(2)
+        x_hand = target_pose[:, :3].unsqueeze(2).repeat(self.horizon, 1, 1)
 
         ## compute normalized direction vector from x_tcp to x_hand
         u = (x_hand - x_tcp) / torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
-        cost = compute_reflected_mass(x[:, self.action_dim : self.action_dim + 6, :], u)
+        cost = compute_reflected_mass(x[:, self.action_dim : self.action_dim + n_dof, :], u)
 
         # cost = compute_reflected_mass(x[:,:6,:], u)
         final_cost = cost.sum(axis=1)
-        # import ipdb; ipdb.set_trace()
         return final_cost
 
 
@@ -197,7 +194,7 @@ class GoalPoseCost:
     def __init__(self) -> None:
         pass
 
-    def __call__(self, x: torch.tensor, cond: dict) -> torch.tensor:
+    def __call__(self, x: torch.tensor, t, value) -> torch.tensor:
         """computes cost of reaching the goal pose
 
         Args:
@@ -210,12 +207,11 @@ class GoalPoseCost:
         """
         batch_size, horizon, transition_dim = x.shape
         # cost = torch.empty((batch_size, horizon)).to("cuda")
-        '''.unsqueeze(dim=1)'''
-        x_ = einops.rearrange(x[:, -1, :6].unsqueeze(dim=1), "b h t-> t (b h)").to("cuda")
+        """.unsqueeze(dim=1)"""
+        x_ = einops.rearrange(x[:, t, :transition_dim].unsqueeze(dim=1), "b h t-> t (b h)").to("cuda")
         x_tcp = fkine(x_)[:, :3]
         x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=1)
-        x_goal = cond["goal_pose"][:, :3].unsqueeze(1).repeat(1, 1, 1)
-        cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2) 
+        x_goal = value[:, :3].unsqueeze(1).repeat(1, 1, 1)  # x_goal shape now (batch_size, 1, position)
+        cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2)
         final_cost = cost.sum(axis=1)
-
         return final_cost

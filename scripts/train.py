@@ -6,7 +6,7 @@ import diffuser.utils as utils
 
 
 class Parser(utils.Parser):
-    dataset: str = "ur5_coppeliasim_full_path"
+    dataset: str = "kuka_coppeliasim_full_path"
     config: str = "config.robo"
 
 
@@ -25,6 +25,7 @@ dataset_config = utils.Config(
     use_padding=args.use_padding,
     use_actions=args.use_actions,
     max_path_length=args.max_path_length,
+    # dataset_dir=args.savepath
 )
 ## TODO Build a renderer
 # render_config = utils.Config(
@@ -102,18 +103,17 @@ diffusion = diffusion_config(model)
 
 trainer = trainer_config(diffusion, dataset)  # , renderer)
 
-
 # -----------------------------------------------------------------------------#
 # ------------------------ test forward & backward pass -----------------------#
 # -----------------------------------------------------------------------------#
 
 utils.report_parameters(model)
 
-#print("Testing forward...", end=" ", flush=True)
-#batch = utils.batchify(dataset[0])
-#loss, _ = diffusion.loss(*batch)
-#loss.backward()
-#print("✓")
+# print("Testing forward...", end=" ", flush=True)
+# batch = utils.batchify(dataset[0])
+# loss, _ = diffusion.loss(*batch)
+# loss.backward()
+# print("✓")
 
 
 # -----------------------------------------------------------------------------#

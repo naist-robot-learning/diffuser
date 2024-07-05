@@ -6,11 +6,14 @@ import time
 
 class ValueGuide(nn.Module):
 
-    def __init__(
-        self, model, clip_grad=True, clip_grad_rule="norm", max_grad_norm=1.0, max_grad_value=1.0
-    ):
+    def __init__(self, model, weights, clip_grad=True, clip_grad_rule="norm", max_grad_norm=1.0, max_grad_value=1.0):
         super().__init__()
         self.model = model
+        self._weights = {"smoothness": weights[0]}
+        self._weights["refmass"] = weights[1]
+        self._weights["goal_pose"] = weights[2]
+        self._weights["via_point1"] = weights[2]
+        self._weights["via_point2"] = weights[2]
         self.clip_grad = clip_grad
         self.clip_grad_rule = clip_grad_rule
         self.max_grad_norm = max_grad_norm
@@ -18,30 +21,32 @@ class ValueGuide(nn.Module):
 
     def forward(self, x, cond, t):
         output, output_measured = self.model(x, cond, t)
-        return output.squeeze(dim=-1), output_measured.squeeze(dim=-1)
+        for i, (key, val) in enumerate(output.items()):
+            output[key] = val.squeeze(dim=-1)
+        return output, output_measured.squeeze(dim=-1)
 
     def gradients(self, x, *args):
         x.requires_grad_()
-        y, y_measured = self(x, *args)
+        cost_dict, cost_measured = self(x, *args)
         # start = time.time()
         # print("x.device: ", x.device)
-        grad = torch.autograd.grad([y.sum()], [x], retain_graph=True)[0]
-        # end = time.time()
-        # print("time to compute gradient: ", end-start)
-        # print("x[0,0,8]", x[0,0,:])
-        # print("grad[0,0,8]", grad[0,0,:])
-        # clip gradients
-        grad_cost_clipped = self.clip_gradient(grad)
-        # Clipp grad
-        grad_cost_clipped[..., 0, :] = 0
-        #grad_cost_clipped[..., -1, :] = 0
-        x.detach()
-        # import ipdb;ipdb.set_trace()
+        accu_grad = 0
+        for i, (key, cost) in enumerate(cost_dict.items()):
+            grad = torch.autograd.grad([cost.sum()], [x], retain_graph=True)[0]
+            # clip gradients
+            grad_cost_clipped = self.clip_gradient(grad)
+            grad_cost_clipped[..., 0, :] = 0
+            # Clip grad
+            if key is not "goal_pose":
+                grad_cost_clipped[..., -1, :] = 0
+            accu_grad += grad_cost_clipped * self._weights[key]
+            x.detach()
+            # import ipdb;ipdb.set_trace()
 
         # Gradient ascent
-        #grad = -1.0 * grad_cost_clipped
-        return y, grad, y_measured
-    
+        # accu_grad = -1.0 * accu_grad
+        return cost_dict, accu_grad, cost_measured
+
     def clip_gradient(self, grad):
         if self.clip_grad:
             if self.clip_grad_rule == "norm":

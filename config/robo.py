@@ -118,14 +118,33 @@ ur5_coppeliasim_full_path = {
     },
     "plan": {
         "horizon": 48,
+        "n_diffusion_steps": 25,
+        "batch_size": 64,
+        "use_actions": False,
+        "scale": 0.0001,  # 1.85 for only pose cost
+        "t_stopgrad": 0,
+        "test_cost": "_",  # Choose Q1 or Q2
+    },
+}
+
+kuka_coppeliasim_full_path = {
+    "diffusion": {
+        "horizon": 48,  # longest path in dataset
+        "n_diffusion_steps": 25,
+        "attention": True,
+        "use_actions": False,
+    },
+    "plan": {
+        "horizon": 48,
         "n_diffusion_steps": 20,
         "batch_size": 64,
         "use_actions": False,
-        "scale": 0.0001,  #1.85 for only pose cost
+        "scale": 0.0001,  # 1.85 for only pose cost
         "t_stopgrad": 0,
-        "test_cost": "_", #Choose Q1 or Q2
+        "test_cost": "Q2",  # Choose Q1 or Q2
     },
 }
+
 ur5_coppeliasim_full_path_goal = {
     "diffusion": {
         "horizon": 48,  # longest path in dataset

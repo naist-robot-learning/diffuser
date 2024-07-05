@@ -159,7 +159,7 @@ def cosine_beta_schedule(timesteps, s=0.008, dtype=torch.float32):
 def apply_conditioning(x, conditions, action_dim):
     cnt = 0
     for t, val in conditions.items():
-        if type(t) is str:
+        if type(t) is str or t != 0:
             continue
         else:
 

@@ -89,12 +89,8 @@ class GaussianDiffusion(nn.Module):
 
         ## log calculation clipped because the posterior variance
         ## is 0 at the beginning of the diffusion chain
-        self.register_buffer(
-            "posterior_log_variance_clipped", torch.log(torch.clamp(posterior_variance, min=1e-20))
-        )
-        self.register_buffer(
-            "posterior_mean_coef1", betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod)
-        )
+        self.register_buffer("posterior_log_variance_clipped", torch.log(torch.clamp(posterior_variance, min=1e-20)))
+        self.register_buffer("posterior_mean_coef1", betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod))
         self.register_buffer(
             "posterior_mean_coef2",
             (1.0 - alphas_cumprod_prev) * np.sqrt(alphas) / (1.0 - alphas_cumprod),
@@ -186,9 +182,7 @@ class GaussianDiffusion(nn.Module):
         else:
             assert RuntimeError()
 
-        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
-            x_start=x_recon, x_t=x, t=t
-        )
+        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(x_start=x_recon, x_t=x, t=t)
         return model_mean, posterior_variance, posterior_log_variance
 
     @torch.no_grad()
@@ -219,7 +213,7 @@ class GaussianDiffusion(nn.Module):
         verbose: bool = True,
         return_diffusion: bool = False,
         sample_fn: Callable = default_sample_fn,
-        **sample_kwargs
+        **sample_kwargs,
     ) -> namedtuple:
         """Computes diffusion
 
@@ -240,23 +234,27 @@ class GaussianDiffusion(nn.Module):
 
         diffusion = [x] if return_diffusion else None
 
-        progress = utils.Progress(self.n_timesteps) if verbose else utils.Silent()
-
+        progress_val = utils.Progress(self.n_timesteps) if verbose else utils.Silent()
         for i in reversed(range(0, self.n_timesteps)):
 
             t = make_timesteps(batch_size, i, device)
-            x, values, values_measured  = sample_fn(self, x, cond, t, **sample_kwargs)
+            x, values_dict, values_measured = sample_fn(self, x, cond, t, **sample_kwargs)
             x = apply_conditioning(x, cond, self.action_dim)
-            progress.update({"t": i, "vmin": values.min().item(), "vmax": values.max().item()})
+            val2sort = torch.zeros((len(values_dict), len(values_measured)))
+            for j, (key, val) in enumerate(values_dict.items()):
+                val2sort[j, :] = val.cpu()
+
+            val2sort = val2sort.sum(axis=1)
+            progress_val.update({"t": i, "vmin": val2sort.min().item(), "vmax": val2sort.max().item()})
 
             if return_diffusion:
                 diffusion.append(x)
 
-        progress.stamp()
-        x, values = sort_by_values(x, values)
+        progress_val.stamp()
+        x, _ = sort_by_values(x, val2sort)
         if return_diffusion:
             diffusion = torch.stack(diffusion, dim=1)
-        return Sample(x, values, values_measured, diffusion)
+        return Sample(x, values_dict, values_measured, diffusion)
 
     @torch.no_grad()
     def conditional_sample(self, cond, horizon=None, **sample_kwargs):
