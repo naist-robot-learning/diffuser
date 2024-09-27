@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from diffuser.robot.UR5kinematicsAndDynamics_vectorized import compute_reflected_mass, fkine
 import einops
+import kornia
 import numpy as np
 import torch
 
@@ -159,10 +160,8 @@ class ReflectedMassCost:
         self.action_dim = action_dim
         self.batch_size = batch_size
         self.horizon = horizon
-        # self._cost = torch.empty((batch_size, horizon)).to("cuda")
-        # self._u = torch.empty((batch_size * horizon, 3, 1), dtype=torch.float32).to("cuda")
 
-    def __call__(self, x: torch.tensor, cond: dict) -> torch.tensor:
+    def __call__(self, x: torch.tensor, target_pose: torch.tensor) -> torch.tensor:
         """computes reflected mass cost in the direction of the hand_pose found in
         cond["hand_pose"]
 
@@ -175,17 +174,21 @@ class ReflectedMassCost:
         Returns:
             torch.tensor: cost in batch shape
         """
-        # import ipdb
 
-        # ipdb.set_trace()
+        n_dof = 6
+        b, h, t = x.shape
         x = einops.rearrange(x, "b h t -> b t h")
         x_ = einops.rearrange(x, "b t h -> t (b h)")
-        x_tcp = fkine(x_[self.action_dim : self.action_dim + 6, :])[:, :3].unsqueeze(2)
-        x_hand = cond["hand_pose"][:, :3].unsqueeze(2).repeat(self.horizon, 1, 1)
+        x_tcp, _ = fkine(x_[self.action_dim : self.action_dim + n_dof, :])
+        x_tcp = x_tcp[:, :3].unsqueeze(2)
+        x_hand = target_pose[:, :3].unsqueeze(2).repeat(self.horizon, 1, 1)
 
         ## compute normalized direction vector from x_tcp to x_hand
-        u = (x_hand - x_tcp) / torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
-        cost = compute_reflected_mass(x[:, self.action_dim : self.action_dim + 6, :], u)
+
+        # u = (x_hand - x_tcp) / torch.linalg.norm((x_hand - x_tcp), dim=1, ord=2).unsqueeze(2)
+        u = torch.zeros((b * h, 3, 1)).to("cuda")
+        u[:, 0] = 1
+        cost = compute_reflected_mass(x[:, self.action_dim : self.action_dim + n_dof, :], u)
 
         # cost = compute_reflected_mass(x[:,:6,:], u)
         final_cost = cost.sum(axis=1)
@@ -195,9 +198,9 @@ class ReflectedMassCost:
 
 class GoalPoseCost:
     def __init__(self) -> None:
-        pass
+        self.gamma = 0.35
 
-    def __call__(self, x: torch.tensor, cond: dict) -> torch.tensor:
+    def __call__(self, x: torch.tensor, t, value) -> torch.tensor:
         """computes cost of reaching the goal pose
 
         Args:
@@ -209,13 +212,118 @@ class GoalPoseCost:
             torch.tensor: cost in batch shape
         """
         batch_size, horizon, transition_dim = x.shape
-        # cost = torch.empty((batch_size, horizon)).to("cuda")
-        '''.unsqueeze(dim=1)'''
-        x_ = einops.rearrange(x[:, -1, :6].unsqueeze(dim=1), "b h t-> t (b h)").to("cuda")
-        x_tcp = fkine(x_)[:, :3]
-        x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=1)
-        x_goal = cond["goal_pose"][:, :3].unsqueeze(1).repeat(1, 1, 1)
-        cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2) 
-        final_cost = cost.sum(axis=1)
+        sth, other = fkine(einops.rearrange(x, "b h t-> t (b h)").to("cuda"))
+
+        other = kornia.geometry.Quaternion.from_matrix(other[:, :3, :3]).data
+        other_xyzw = torch.cat((other[:, 1:], other[:, :1]), dim=1)  # Now in (x, y, z, w)
+        other = einops.rearrange(other_xyzw, "(b h) t -> b h t", b=batch_size, h=horizon)
+
+        sth = einops.rearrange(sth, "(b h) t -> b h t", b=batch_size)
+
+
+        if abs(t) > 1:
+            x_ = einops.rearrange(x[:, t:, :transition_dim], "b h t-> t (b h)").to("cuda")
+        else:
+            x_ = einops.rearrange(x[:, t:, :transition_dim].unsqueeze(dim=1), "b h t-> t (b h)").to("cuda")
+        x_tcp, H = fkine(x_)
+        rpy_tcp = x_tcp[:, 3:]
+        x_tcp = x_tcp[:, :3]
+
+        x_tcp = einops.rearrange(x_tcp, "(b h) t -> b h t", b=batch_size, h=abs(t))
+        rpy_tcp = einops.rearrange(rpy_tcp, "(b h) t -> b h t", b=batch_size, h=abs(t))
+
+        # Position
+        x_goal = value[:, :3].unsqueeze(1).repeat(1, abs(t), 1)  # x_goal shape now (batch_size, 1, position)
+        position_cost = torch.linalg.norm((x_goal - x_tcp), dim=2, ord=2)
+
+        # Orientation
+
+        q_tcp = kornia.geometry.Quaternion.from_matrix(H[:, :3, :3]).data
+        # Rearrange from (w, x, y, z) to (x, y, z, w)
+        q_tcp_xyzw = torch.cat((q_tcp[:, 1:], q_tcp[:, :1]), dim=1)  # Now in (x, y, z, w)
+        q_tcp = einops.rearrange(q_tcp_xyzw, "(b h) t -> b h t", b=batch_size)
+
+        q_goal = value[:, 3:].unsqueeze(1).repeat(1, abs(t), 1)
+
+        q_goal_inv = torch.cat((-q_goal[:, :, :3], q_goal[:, :, 3:]), dim=2)  # In (x, y, z, w)
+        q_diff = self.multiply_quaternions(q_tcp, q_goal_inv)
+
+        logmap_Q = self.quaternion_LogMap(q_diff)
+
+        orientation_cost = torch.linalg.norm(logmap_Q, dim=2, ord=2)
+
+        final_cost = self.gamma * (position_cost.sum(axis=1)) + (1 - self.gamma) * orientation_cost.sum(axis=1)
 
         return final_cost
+
+    def quaternion_LogMap(self, Q):
+        """
+        Computes the logarithmic map of a unit quaternion, projecting it to the tangent space.
+
+        Args:
+            q (torch.Tensor: BxHxT): A tensor of shape (4,) representing a quaternion [x, y, z, w]. B=64, H=5, T=6
+
+        Returns:
+            torch.Tensor: A tensor of shape (3,) representing the tangent vector.
+        """
+
+        # Extract the real and imaginary parts
+        x, y, z, w = Q[:, :, 0], Q[:, :, 1], Q[:, :, 2], Q[:, :, 3]
+
+        # Calculate the angle theta
+        theta = 2 * torch.atan(1 / w).clamp(min=1e-8)  # Clamp to avoid division by zero
+
+        sin_theta = torch.sin(theta / 2)
+        threshold = torch.zeros_like(sin_theta) * 1e-8
+        # Compute the tangent vector
+        scale = torch.where(sin_theta.abs() > threshold, theta / sin_theta, torch.zeros_like(theta))
+        delta_w = torch.stack([scale * x, scale * y, scale * z], axis=2)
+
+        return delta_w
+
+    def euler_to_quaternion(self, rpy):
+
+        yaw = rpy[:, :, 0]
+        pitch = rpy[:, :, 1]
+        roll = rpy[:, :, 2]
+        cr = torch.cos(roll * 0.5)
+        sr = torch.sin(roll * 0.5)
+        cp = torch.cos(pitch * 0.5)
+        sp = torch.sin(pitch * 0.5)
+        cy = torch.cos(yaw * 0.5)
+        sy = torch.sin(yaw * 0.5)
+
+        qw = cr * cp * cy + sr * sp * sy
+        qx = sr * cp * cy - cr * sp * sy
+        qy = cr * sp * cy + sr * cp * sy
+        qz = cr * cp * sy - sr * sp * cy
+
+        return torch.stack([qx, qy, qz, qw], axis=2)
+
+    def multiply_quaternions(self, q0, q1):
+        """Quaternion multiplication
+
+        Args:
+            q0 (torch.tensor): Quaternion in x,y,z,w
+            q1 (torch.tensor): Quaternion in x,y,z,w
+
+        Returns:
+            t: Quaternion in x,y,z,w
+        """
+
+        q_0 = q0[:, :, 3]
+        q_1 = q0[:, :, 0]
+        q_2 = q0[:, :, 1]
+        q_3 = q0[:, :, 2]
+
+        r0 = q1[:, :, 3]
+        r1 = q1[:, :, 0]
+        r2 = q1[:, :, 1]
+        r3 = q1[:, :, 2]
+
+        t0 = r0 * q_0 - r1 * q_1 - r2 * q_2 - r3 * q_3
+        t1 = r0 * q_1 + r1 * q_0 - r2 * q_3 + r3 * q_2
+        t2 = r0 * q_2 + r1 * q_3 + r2 * q_0 - r3 * q_1
+        t3 = r0 * q_3 - r1 * q_2 + r2 * q_1 + r3 * q_0
+
+        return torch.stack([t1, t2, t3, t0], axis=2)

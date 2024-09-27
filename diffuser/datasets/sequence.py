@@ -44,8 +44,6 @@ class SequenceDataset(torch.utils.data.Dataset):
         self.path_lengths = fields.path_lengths
         self.normalize()
         print(fields)
-        # shapes = {key: val.shape for key, val in self.fields.items()}
-        # print(f'[ datasets/mujoco ] Dataset fields: {shapes}')
 
     def normalize(self, keys=["observations", "actions"]):
         """
@@ -144,7 +142,7 @@ class TrajectoryDataset(torch.utils.data.Dataset):
 
     def __init__(
         self,
-        dataset_dir="/home/ws/src/diffuser/logs/ur5_coppeliasim_full_path_goal/",  #ToDo: remove absolute directory
+        dataset_dir="/home/ws/src/diffuser/logs/ur5_coppeliasim_full_path/",  # ToDo: remove absolute directory
         env="hopper-medium-replay",
         horizon=64,
         normalizer="LimitsNormalizer",
@@ -161,15 +159,10 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         self.use_padding = use_padding
         self.use_actions = use_actions
         self.max_path_length = max_path_length
-        # import cProfile
-        # import pstats
-
-        # Profile the code
-        # profiler = cProfile.Profile()
-        # profiler.enable()
+        print("Dataset directory: ", dataset_dir)
         fields_file = os.path.join(dataset_dir, f"{env}_fields.npy")
         if os.path.exists(fields_file):
-            print("Loading preprocessed fields from .npy file.")
+            print(f"Loading preprocessed fields from {fields_file}.")
             fields = np.load(fields_file, allow_pickle=True).item()
         else:
             print("Processing dataset and creating fields.")
@@ -184,22 +177,6 @@ class TrajectoryDataset(torch.utils.data.Dataset):
             np.save(fields_file, fields)
             print(f"Fields saved to {fields_file}")
 
-        # itr = sequence_dataset(env, self.preprocess_fn)
-
-        # fields = ReplayBuffer(max_n_episodes, max_path_length, termination_penalty)
-
-        # for i, episode in enumerate(itr):
-
-        #     fields.add_path(episode)
-
-        # # profiler.disable()
-        # # Analyze the profile
-        # # stats = pstats.Stats(profiler)
-        # # stats.strip_dirs()
-        # # stats.sort_stats("cumulative")  # Sort by cumulative time
-        # # stats.print_stats()
-
-        # fields.finalize()
         self.normalizer = DatasetNormalizer(fields, normalizer, path_lengths=fields["path_lengths"])
         self.observation_dim = fields.observations.shape[-1]
         if use_actions:
@@ -212,17 +189,13 @@ class TrajectoryDataset(torch.utils.data.Dataset):
         self.path_lengths = fields.path_lengths
         self.normalize()
         print(fields)
-        # shapes = {key: val.shape for key, val in self.fields.items()}
-        # print(f'[ datasets/mujoco ] Dataset fields: {shapes}')
 
     def normalize(self, keys=["observations", "actions"]):
         """
         normalize fields that will be predicted by the diffusion model
         """
         for key in keys:
-            array = torch.from_numpy(
-                self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)
-            ).to("cuda")
+            array = torch.from_numpy(self.fields[key].reshape(self.n_episodes * self.max_path_length, -1)).to("cuda")
 
             normed = self.normalizer(array, key)
             self.fields[f"normed_{key}"] = normed.reshape(self.n_episodes, self.max_path_length, -1)

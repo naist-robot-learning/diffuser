@@ -26,18 +26,9 @@ dataset_config = utils.Config(
     use_actions=args.use_actions,
     max_path_length=args.max_path_length,
 )
-## TODO Build a renderer
-# render_config = utils.Config(
-#     args.renderer,
-#     savepath=(args.savepath, 'render_config.pkl'),
-#     env=args.dataset,
-# )
-# with cProfile.Profile() as pr:
+
 dataset = dataset_config()
-# stats = pstats.Stats(pr)
-# stats.sort_stats(pstats.SortKey.TIME)
-# stats.print_stats()
-# renderer = render_config()
+
 
 observation_dim = dataset.observation_dim
 action_dim = dataset.action_dim
@@ -108,13 +99,6 @@ trainer = trainer_config(diffusion, dataset)  # , renderer)
 # -----------------------------------------------------------------------------#
 
 utils.report_parameters(model)
-
-#print("Testing forward...", end=" ", flush=True)
-#batch = utils.batchify(dataset[0])
-#loss, _ = diffusion.loss(*batch)
-#loss.backward()
-#print("✓")
-
 
 # -----------------------------------------------------------------------------#
 # --------------------------------- main loop ---------------------------------#

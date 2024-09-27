@@ -36,13 +36,9 @@ def get_dataset(
     train_subset, val_subset = random_split(full_dataset, [int(train_size), int(valid_size)])
     # By using cycle the dataloader's iterator is infinite since cyclic
     train_dataloader = cycle(
-        DataLoader(
-            train_subset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=False
-        )
+        DataLoader(train_subset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=False)
     )
-    val_dataloader = cycle(
-        DataLoader(val_subset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=False)
-    )
+    val_dataloader = cycle(DataLoader(val_subset, batch_size=batch_size, num_workers=0, shuffle=True, pin_memory=False))
 
     if save_indices:
         # save the indices of training and validation sets (for later evaluation)
@@ -59,7 +55,7 @@ class EarlyStopper:
         self.patience = patience  # use -1 to deactivate it
         self.min_delta = min_delta
         self.counter = 0
-        self.min_validation_loss = float('inf')
+        self.min_validation_loss = float("inf")
 
     def early_stop(self, validation_loss):
         if self.patience == -1:
@@ -140,12 +136,6 @@ class Trainer(object):
         self.dataset = dataset
         self.dataloader_train = train_dataloader
         self.dataloader_valid = valid_dataloader
-        # self.dataloader = cycle(torch.utils.data.DataLoader(
-        #     self.dataset, batch_size=train_batch_size, num_workers=1, shuffle=True, pin_memory=True
-        # ))
-        # self.dataloader_vis = cycle(torch.utils.data.DataLoader(
-        #     self.dataset, batch_size=1, num_workers=0, shuffle=True, pin_memory=True
-        # ))
         self.renderer = renderer
         self.optimizer = torch.optim.Adam(diffusion_model.parameters(), lr=train_lr)
 
@@ -194,8 +184,10 @@ class Trainer(object):
             self.model.train()
             for i in range(self.gradient_accumulate_every):
                 # Grab next batch with "next"
+
                 batch = next(self.dataloader_train)
                 batch = batch_to_device(batch)
+
                 raw_loss, infos = self.model.loss(*batch)
                 train_losses_l.append(raw_loss.detach().cpu().numpy())
                 loss = raw_loss / self.gradient_accumulate_every
@@ -211,7 +203,6 @@ class Trainer(object):
             if train_step % steps_til_summary == 0:
                 # TRAINING
                 train_loss = np.mean(train_losses_l)
-                # train_losses_log = {"TRAINING Diffusion_loss": train_loss}
 
                 #####################################################################################
                 # VALIDATION LOSS and SUMMARY
@@ -231,7 +222,6 @@ class Trainer(object):
 
                     print("... finished validation.")
                     valid_loss = np.mean(validation_losses_l)
-                    # validation_losses_log = {f"VALIDATION Diffusion_loss": valid_loss}
 
                 self.writer.add_scalars(
                     "Diffusion_loss",
@@ -252,7 +242,6 @@ class Trainer(object):
 
             if self.step % self.log_freq == 0:
                 infos_str = " | ".join([f"{key}: {val:8.4f}" for key, val in infos.items()])
-                # import ipdb; ipdb.set_trace()
                 print(f"{self.step}: {raw_loss:8.4f} | {infos_str} | t: {timer():8.4f}")
 
             if self.step == 0 and self.sample_freq:
@@ -365,10 +354,6 @@ class Trainer(object):
 
             # [ 1 x 1 x observation_dim ]
             normed_conditions = to_np(batch.conditions[0])[:, None]
-
-            # from diffusion.datasets.preprocessing import blocks_cumsum_quat
-            # observations = conditions + blocks_cumsum_quat(deltas)
-            # observations = conditions + deltas.cumsum(axis=1)
 
             ## [ n_samples x (horizon + 1) x observation_dim ]
             normed_observations = np.concatenate(

@@ -12,6 +12,7 @@ diffusion_args_to_watch = [
     ("horizon", "H"),
     ("n_diffusion_steps", "T"),
     ("dataset", ""),
+    #    ("predict_epsilon", "pe"),
 ]
 
 
@@ -38,7 +39,7 @@ base = {
         "action_weight": 1,
         "loss_weights": None,
         "loss_discount": 1,
-        "predict_epsilon": False,
+        #        "predict_epsilon": False,
         "dim_mults": (1, 4, 8),
         "renderer": "",
         ## dataset
@@ -48,7 +49,7 @@ base = {
         "preprocess_fns": [],  # ['maze2d_set_terminals'],
         "clip_denoised": False,  # MAze is true
         "use_padding": True,  # Maze is false
-        "max_path_length": 49,
+        "max_path_length": 50,
         ## serialization
         "logbase": "logs",
         "prefix": "diffusion/",
@@ -109,21 +110,40 @@ base = {
         medium: 250
         large: 600
 """
-ur5_coppeliasim_full_path = {
+ur5_coppeliasim_full_path_peTrue = {
     "diffusion": {
         "horizon": 48,  # longest path in dataset
-        "n_diffusion_steps": 25,
+        "n_diffusion_steps": 20,
         "attention": True,
         "use_actions": False,
+        "predict_epsilon": True,
     },
     "plan": {
         "horizon": 48,
         "n_diffusion_steps": 20,
         "batch_size": 64,
         "use_actions": False,
-        "scale": 0.0001,  #1.85 for only pose cost
+        "scale": 0.0001,  # 1.85 for only pose cost
         "t_stopgrad": 0,
-        "test_cost": "_", #Choose Q1 or Q2
+        "test_cost": "_",  # Choose Q1 or Q2
+    },
+}
+ur5_coppeliasim_full_path = {
+    "diffusion": {
+        "horizon": 48,  # longest path in dataset
+        "n_diffusion_steps": 20,
+        "attention": True,
+        "use_actions": False,
+        "predict_epsilon": True,
+    },
+    "plan": {
+        "horizon": 48,
+        "n_diffusion_steps": 25,
+        "batch_size": 64,
+        "use_actions": False,
+        "scale": 0.0001,  # 1.85 for only pose cost
+        "t_stopgrad": 0,
+        "test_cost": "_",  # Choose Q1 or Q2
     },
 }
 ur5_coppeliasim_full_path_goal = {
@@ -169,5 +189,22 @@ ur5_coppeliasim_full_path_goal_hand_no_orientation = {
         "use_actions": False,
         "scale": 0.00000000000001,
         "t_stopgrad": 2,
+    },
+}
+tomm_coppeliasim_full_path = {
+    "diffusion": {
+        "horizon": 48,  # longest path in dataset
+        "n_diffusion_steps": 25,
+        "attention": True,
+        "use_actions": False,
+    },
+    "plan": {
+        "horizon": 40,
+        "n_diffusion_steps": 25,
+        "batch_size": 64,
+        "use_actions": False,
+        "scale": 0.0001,  # 1.85 for only pose cost
+        "t_stopgrad": 0,
+        "test_cost": "_",  # Choose Q1 or Q2
     },
 }

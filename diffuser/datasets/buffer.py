@@ -19,9 +19,7 @@ class ReplayBuffer:
         self.termination_penalty = termination_penalty
 
     def __repr__(self):
-        return "[ datasets/buffer ] Fields:\n" + "\n".join(
-            f"    {key}: {val.shape}" for key, val in self.items()
-        )
+        return "[ datasets/buffer ] Fields:\n" + "\n".join(f"    {key}: {val.shape}" for key, val in self.items())
 
     def __getitem__(self, key):
         return self._dict[key]

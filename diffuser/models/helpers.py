@@ -134,10 +134,6 @@ class LinearAttention(nn.Module):
 
 def extract(a, t, x_shape):
     b, *_ = t.shape  ### DG: same as b = t.shape[0]
-    # print("a shape: ", np.shape(a))
-    # print("a: ", a)
-    # print("t shape: ", np.shape(t))
-    # print("t : ", t)
     out = a.gather(-1, t)
     return out.reshape(b, *((1,) * (len(x_shape) - 1)))
 
@@ -158,12 +154,14 @@ def cosine_beta_schedule(timesteps, s=0.008, dtype=torch.float32):
 
 def apply_conditioning(x, conditions, action_dim):
     cnt = 0
+
     for t, val in conditions.items():
         if type(t) is str:
             continue
         else:
 
-            x[:, t, action_dim:] = val.clone()
+            if t == 0 or t == 47:
+                x[:, t, action_dim:] = val.clone()
             # x[:, t, :action_dim] = val[:,:6].clone()
             # Check if x state dimension is larger than 12
             # if cnt == 0:

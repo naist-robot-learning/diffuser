@@ -1,13 +1,11 @@
 from collections import namedtuple
 import torch
 import einops
-import pdb
 
 import diffuser.utils as utils
 from diffuser.datasets.preprocessing import get_policy_preprocess_fn
+from diffusionRenderer import DiffusionAnimator
 
-
-# Trajectories = namedtuple("Trajectories", "actions observations values")
 Trajectories = namedtuple("Trajectories", "observations values values_measured")
 
 
@@ -26,23 +24,29 @@ class GuidedPolicy:
         conditions = self._format_conditions(conditions, batch_size)
 
         ## run reverse diffusion process
-        samples = self.diffusion_model(
-            conditions, guide=self.guide, verbose=verbose, **self.sample_kwargs
-        )
+        samples = self.diffusion_model(conditions, guide=self.guide, verbose=verbose, **self.sample_kwargs)
         trajectories = samples.trajectories
-        ## extract action [ batch_size x horizon x transition_dim ]
-        # actions = trajectories[:, :, : self.action_dim]
-        # actions = self.normalizer.unnormalize(actions, 'actions')
-
-        ## extract first action
-        # action = actions[0, 0]
 
         normed_observations = trajectories[:, :, self.action_dim :]
         observations = self.normalizer.unnormalize(normed_observations, "observations")
 
-        # trajectories = Trajectories(actions, observations, samples.values)
         trajectories = Trajectories(observations, samples.values, samples.values_measured)
-        # return action, trajectories
+        diffusion_chain = samples.chains
+
+        render = False
+        if render:
+
+            renderer = DiffusionAnimator()
+            diffusion_chain = self.normalizer.unnormalize(diffusion_chain, "observations")
+
+            for i in range(20):
+
+                x = diffusion_chain[:64, i]
+                renderer.load_trajectory(x)
+                renderer.render_robot_animation(i)
+            x = trajectories.observations[0].unsqueeze(0)
+            renderer.load_trajectory(x)
+            renderer.render_robot_animation(20, True)
         return trajectories
 
     @property

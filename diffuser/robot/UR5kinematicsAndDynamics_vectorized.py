@@ -1,8 +1,12 @@
 import einops
+import kornia
 import numpy as np
 import time
 import torch
-from torch.func import vmap, jacrev, functional_call
+import math
+from diffuser.robot.urdf_mass_matrix_UR5 import compute_mass_matrix_urdf
+
+torch.pi = math.pi
 
 
 def dh_to_transformation(a, alpha, d, theta):
@@ -21,12 +25,7 @@ def dh_to_transformation(a, alpha, d, theta):
     horizon = theta.shape[0]
     cos_theta, sin_theta = torch.cos(theta), torch.sin(theta)
     cos_alpha, sin_alpha = torch.cos(alpha), torch.sin(alpha)
-    T = (
-        torch.eye(4, dtype=torch.float32, device="cuda")
-        .unsqueeze(0)
-        .expand(horizon, -1, -1)
-        .clone()
-    )
+    T = torch.eye(4, dtype=torch.float32, device="cuda").unsqueeze(0).expand(horizon, -1, -1).clone()
 
     T[:, 0, 0] = cos_theta
     T[:, 0, 1] = -sin_theta * cos_alpha
@@ -52,7 +51,7 @@ def compute_fk(q):
         T (4x4 torch tensor): homogenous transformation matrix
 
     """
-    # import ipdb; ipdb.set_trace()
+    tomm_mode = False
     # UR5 Standard DH parameters (a, alpha, d, theta)
     DH_params = torch.tensor(
         [
@@ -66,12 +65,29 @@ def compute_fk(q):
     ).to("cuda")
     horizon = q.shape[1]
     assert len(q) == 6, "There should be 6 joint angles"
-    T = torch.eye(4, dtype=torch.float32, device="cuda").unsqueeze(0).expand(horizon, -1, -1)
+    T = torch.zeros((horizon, 4, 4), dtype=torch.float32, device="cuda")
+    ones = torch.ones(horizon)
+    ################################## Tomm required offsets [x,y,z,w]####################################
+    if tomm_mode:
+        # print("tomm_mode on")
+
+        H_Wt_bC, _ = get_tomm_setup(horizon)
+        T[:, :3, :3] = H_Wt_bC[:, :3, :3]
+        T[:, :3, -1] = H_Wt_bC[:, :3, -1]
+        T[:, 3, -1] = ones
+    else:
+        T[:, :3, :3] = torch.eye(3, dtype=torch.float32, device="cuda")
+        T[:, 3, -1] = ones
     for i, dh in enumerate(DH_params):
         a = dh[0]
         alpha = dh[1]
         d = dh[2]
-        T = torch.matmul(T, dh_to_transformation(a, alpha, d, q[i, :]))
+        if i == 5 and tomm_mode:  ## Stupid Gripper shift
+            shift = q[i, :] - torch.pi / 2
+            T = torch.matmul(T, dh_to_transformation(a, alpha, d, shift))
+        else:
+            T = torch.matmul(T, dh_to_transformation(a, alpha, d, q[i, :]))
+
     return T
 
 
@@ -89,7 +105,7 @@ def compute_rpy_xyz(H):
 
     """
     horizon = H.shape[0]
-    rpy = torch.empty((horizon, 3), dtype=torch.float32).to("cuda")
+    rpy = torch.zeros((horizon, 3), dtype=torch.float32).to("cuda")
     tol = 20
     eps = 1e-6
 
@@ -119,7 +135,7 @@ def compute_rpy_xyz(H):
     #         cr = torch.cos(-torch.atan2(H[1, 2], H[2, 2]))
     #         rpy[1] = torch.atan(H[0, 2] * cr / H[2, 2])
     horizon = H.shape[0]
-    rpy = torch.empty((horizon, 3), dtype=torch.float32).to("cuda")
+    rpy = torch.zeros((horizon, 3), dtype=torch.float32).to("cuda")
     tol = 20
     eps = 1e-6
 
@@ -138,21 +154,15 @@ def compute_rpy_xyz(H):
     mask2 = H[:, 0, 2] > 0
     rpy[:, 2] = torch.where(
         singularity_mask,
-        torch.where(
-            mask2, torch.atan2(H[:, 2, 1], H[:, 1, 1]), -torch.atan2(H[:, 1, 0], H[:, 2, 0])
-        ),
+        torch.where(mask2, torch.atan2(H[:, 2, 1], H[:, 1, 1]), -torch.atan2(H[:, 1, 0], H[:, 2, 0])),
         -torch.atan2(H[:, 1, 2], H[:, 2, 2]),
     )
 
     # Compute pitch (rpy[:, 1])
-    rpy[:, 1] = torch.where(
-        singularity_mask, torch.asin(torch.clip(H[:, 0, 2], -1.0, 1.0)), -9999999
-    )
+    rpy[:, 1] = torch.where(singularity_mask, torch.asin(torch.clip(H[:, 0, 2], -1.0, 1.0)), -9999999)
 
     # Handling cases where k is not 0 or 1 (k == 2 or k == 3)
-    k = torch.argmax(
-        torch.abs(torch.stack((H[:, 0, 0], H[:, 0, 1], H[:, 1, 2], H[:, 2, 2]), dim=1)), dim=1
-    )
+    k = torch.argmax(torch.abs(torch.stack((H[:, 0, 0], H[:, 0, 1], H[:, 1, 2], H[:, 2, 2]), dim=1)), dim=1)
     cr = torch.cos(-torch.atan2(H[:, 0, 1], H[:, 0, 0]))
     sr = torch.sin(-torch.atan2(H[:, 0, 1], H[:, 0, 0]))
     sr2 = torch.sin(-torch.atan2(H[:, 1, 2], H[:, 2, 2]))
@@ -177,7 +187,7 @@ def hom_to_pose(H):
 
     """
     horizon = H.shape[0]
-    pose = torch.empty((horizon, 6), dtype=torch.float32).to("cuda")
+    pose = torch.zeros((horizon, 6), dtype=torch.float32).to("cuda")
     pose[:, 0] = H[:, 0, 3]
     pose[:, 1] = H[:, 1, 3]
     pose[:, 2] = H[:, 2, 3]
@@ -199,7 +209,7 @@ def fkine(q):
     """
     H = compute_fk(q)
     compact = hom_to_pose(H)
-    return compact
+    return compact, H
 
 
 def compute_analytical_jacobian(q):
@@ -207,7 +217,8 @@ def compute_analytical_jacobian(q):
     timer = False
 
     def __fkine__(inputs):
-        return fkine(inputs).sum(axis=0)
+        fk, _ = fkine(inputs)
+        return fk.sum(axis=0)
 
     if timer:
         start_time = time.time()
@@ -225,9 +236,7 @@ def compute_analytical_jacobian(q):
         end_time = time.time()
         print("Jacobian rearrange time: ", end_time - start_time)
     else:
-        jac = torch.autograd.functional.jacobian(
-            __fkine__, q, create_graph=False, vectorize=True
-        ).to("cuda")
+        jac = torch.autograd.functional.jacobian(__fkine__, q, create_graph=False, vectorize=True).to("cuda")
         J = einops.rearrange(jac, "m n k -> k m n").to("cuda")
 
     return J
@@ -253,6 +262,8 @@ def compute_inertia_matrix(q):
     Returns:
         Mq (Batchx6x6 torch tensor): inertia matrix
     """
+
+    return compute_mass_matrix_urdf(q)
     ## Returns the dynamics of the UR5 manipulator
     horizon = q.shape[1]
     Mq = torch.empty(horizon, 6, 6, dtype=torch.float32).to("cuda")
@@ -358,10 +369,7 @@ def compute_inertia_matrix(q):
         + 2.263576776
     )
     Mq[:, 2, 2] = m33 = (
-        0.02755524467 * cos_q4 * sin_q5
-        - 0.1166034794 * sin_q4
-        - 0.001803200269 * cos_q5**2
-        + 0.644094696
+        0.02755524467 * cos_q4 * sin_q5 - 0.1166034794 * sin_q4 - 0.001803200269 * cos_q5**2 + 0.644094696
     )
     Mq[:, 3, 3] = m44 = 0.001803200269 * sin_q5**2 + 0.01432543956
     Mq[:, 4, 4] = m55 = 0.002840479501
@@ -419,35 +427,32 @@ def compute_inertia_matrix(q):
         + 0.01612863983
     )  # m24 m42
 
-    Mq[:, 1, 4] = Mq[:, 4, 1] = cos_q5 * (
-        0.01492110566 * sin_q34 + 0.01377762234 * sin_q4 - 0.003229235775
-    )  # m25 m52
+    Mq[:, 1, 4] = Mq[:, 4, 1] = cos_q5 * (0.01492110566 * sin_q34 + 0.01377762234 * sin_q4 - 0.003229235775)  # m25 m52
     Mq[:, 1, 5] = Mq[:, 5, 1] = 0.000138534912 * cos_q5  # m26 m62
     Mq[:, 2, 3] = Mq[:, 3, 2] = (
-        0.01377762234 * cos_q4 * sin_q5
-        - 0.05830173968 * sin_q4
-        - 0.001803200269 * cos_q5**2
-        + 0.01612863983
+        0.01377762234 * cos_q4 * sin_q5 - 0.05830173968 * sin_q4 - 0.001803200269 * cos_q5**2 + 0.01612863983
     )  # m34 m43
     Mq[:, 2, 4] = Mq[:, 4, 2] = cos_q5 * (0.01377762234 * sin_q4 - 0.003229235775)  # m35 m53
     Mq[:, 2, 5] = Mq[:, 5, 2] = 0.000138534912 * cos_q5  # m36 m63
     Mq[:, 3, 4] = Mq[:, 4, 3] = -0.003229235775 * cos_q5  # m45 m54
     Mq[:, 3, 5] = Mq[:, 5, 3] = 0.000138534912 * cos_q5  # m46 m64
     Mq[:, 4, 5] = Mq[:, 5, 4] = 0  # m56 m65
+
     return Mq
 
 
 def compute_reflected_mass(q, u):
-    """Computes the reflected mass of the UR5 manipulator
+    """Computes the cumulative reflected mass of a trajectory from the UR5 manipulator
     along some direction u
 
     Args:
         q (Bx6xH) torch tensor): joint angles
-        u (6x(B H) torch tensor): direction vector
+        u ((B H)x3) torch tensor): direction vector
 
     Returns:
         mu (float): reflected mass along u
     """
+
     b, t, h = q.shape
     q = einops.rearrange(q, "b t h -> t (b h)").to("cuda")
     J = compute_analytical_jacobian(q)
@@ -459,6 +464,7 @@ def compute_reflected_mass(q, u):
     mu = einops.rearrange(mu, "(b h) -> b h", b=b, h=h)
 
     return mu
+
 
 def compute_kinetic_energy_matrix(q):
     """Computes the reflected mass of the UR5 manipulator
@@ -478,4 +484,98 @@ def compute_kinetic_energy_matrix(q):
     J_T = J.permute(0, 2, 1)
     M_x_inv = (J @ torch.linalg.solve(Mq, J_T))[:, :3, :3]
     return M_x_inv
-    
+
+
+def get_tomm_setup(horizon):
+    """Returns the transformation matrices to change from tomm world coordinates to
+    Coppelia Sim base_link coordinates
+
+    Args:
+        horizon (integer): length of the Batch of resulting Transformation matrices
+
+    Returns:
+        H_Wt_bC, H_bC_Wt: Transformation matrices H_Wt_bC, H_bC_Wt
+    """
+
+    # World to Arm base quaternion [w,x,y,z,]
+    quat = torch.tensor([0.321387, 0.863077, -0.321389, 0.220269], device="cuda")
+    ############# TOMM #####################
+    #  quat represents the quaternion from TOMM world to the base in Rviz,
+    #  The coppeliaSim UR5 base_link is shifted counterclockwise 90 degrees about z with respect
+    #  to the RVIZ model. This had to be done since the RVIZ URDF has a 90 degree shift on coordinate
+    #  frame of the base_link. So
+    #  H_Wt_bR @ H_bR_bC @ H_bC_eeC   -> For Reasoning about pose of visualization in terms of the World fram
+    #
+    #  H_bC_Wt @ H_Wt_eeR   -> For inputing poses to Coppelia Env based on the coordinates of RVIZ
+    #  R -> Rviz
+    #  C -> CoppeliaSim
+    #  b -> Base_link
+    #  ee-> end-effector
+    ###########################################################################################
+    R_Wt_bR = kornia.geometry.quaternion_to_rotation_matrix(quat)
+
+    # Quaternion for 90 degrees rotation around z-axis
+    ones = torch.ones(horizon)
+    theta = -torch.pi / 2 * ones  # 90 degrees in radians
+    st = torch.sin(theta / 2)
+    ct = torch.cos(theta / 2)
+    zeros = torch.zeros(horizon)
+    quat_zb = torch.stack(
+        [ct, zeros, zeros, st], dim=-1
+    )  # Kornia is stupid, thus (w,x,y,z) changed from quat_z = torch.stack([zeros, zeros, st, ct], dim=-1)
+
+    # Convert the quaternions to rotation objects
+    R_bR_bC = kornia.geometry.quaternion_to_rotation_matrix(quat_zb).to("cuda")
+
+    # Combine the two rotations
+    R_Wt_bC = torch.matmul(R_Wt_bR, R_bR_bC).to("cuda")
+
+    # Initial position of base_link wrt to world frame.
+    base_Wt = torch.tensor([0.41614, -0.225, 1.2627], dtype=torch.float32).to("cuda")
+    H_Wt_bC = torch.zeros((horizon, 4, 4), dtype=torch.float32, device="cuda")
+
+    H_Wt_bC[:, :3, :3] = R_Wt_bC
+    H_Wt_bC[:, :3, -1] = base_Wt
+    H_Wt_bC[:, 3, -1] = 1.0
+
+    R_Wt_bC_T = R_Wt_bC.transpose(1, 2)
+    H_bC_Wt = torch.zeros((horizon, 4, 4), dtype=torch.float32, device="cuda")
+    H_bC_Wt[:, :3, :3] = R_Wt_bC_T  # R_bC_Wt
+    H_bC_Wt[:, :3, -1] = -R_Wt_bC_T @ base_Wt  # - R_bC_Wt_T @ base_Wt = base_bC
+    H_bC_Wt[:, 3, -1] = 1.0
+
+    return H_Wt_bC, H_bC_Wt
+
+
+def tomm_to_coppeliaBase(pos_Wt, quat_Wt):
+    ############# Important for Visualization ####################
+    H_Wt_bC, H_bC_Wt = get_tomm_setup(1)
+
+    quat_Wt = quat_Wt[[3, 0, 1, 2]]  # Kornia accepts w,x,y,z
+    R_Wt_p = kornia.geometry.quaternion_to_rotation_matrix(quat_Wt)
+    H_Wt_p = torch.zeros((1, 4, 4), dtype=torch.float32, device="cuda")
+
+    H_Wt_p[:, :3, :3] = R_Wt_p
+    H_Wt_p[:, :3, -1] = pos_Wt
+    H_Wt_p[:, 3, -1] = 1.0
+
+    pose_bC = H_bC_Wt @ H_Wt_p
+    pos_bC = pose_bC[:, :3, -1]
+    orien_bC = pose_bC[:, :3, :3].squeeze()
+    quat_bC = kornia.geometry.rotation_matrix_to_quaternion(orien_bC)  # w,x,y,z
+    quat_bC = quat_bC[[1, 2, 3, 0]].unsqueeze(0)
+
+    print("goal_pos in Coppelia Sim base_link coords: ", pos_bC)
+    print("goal_quaternion in Copp Sim base_link coord: ", quat_bC)
+
+    pos_bC_numpy = pos_bC.cpu().numpy()
+    quat_bC_numpy = quat_bC.cpu().numpy()
+    quat_bC_numpy = quat_bC_numpy / np.linalg.norm(quat_bC_numpy)
+    copp_point = np.concatenate([pos_bC_numpy, quat_bC_numpy], axis=1).squeeze()
+    return copp_point
+
+
+if __name__ == "__main__":
+    import ipdb
+
+    ipdb.set_trace()

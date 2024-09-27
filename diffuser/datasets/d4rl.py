@@ -81,24 +81,6 @@ def get_dataset(env):
 
     return dataset
 
-
-# def get_dataset(env):
-#     if type(env) != str:
-#         dataset = env.get_dataset()
-#     else:
-#         dataset = h5py.File(f"/home/ws/src/{env}.hdf5")
-
-#     if "antmaze" in str(env).lower():
-#         ## the antmaze-v0 environments have a variety of bugs
-#         ## involving trajectory segmentation, so manually reset
-#         ## the terminal and timeout fields
-#         dataset = antmaze_fix_timeouts(dataset)
-#         dataset = antmaze_scale_rewards(dataset)
-#         get_max_delta(dataset)
-
-#     return dataset
-
-
 def sequence_dataset(env, preprocess_fn):
     """
     Returns an iterator through trajectories.
@@ -145,70 +127,20 @@ def sequence_dataset(env, preprocess_fn):
         if i % 10000 == 0:
             print(f"Episode {i}/{N}")
         if done_bool or final_timestep:
-            episode_step = 0
+            if episode_step != 48:
+                print("Bug in dataset: ", episode_step)
+                import ipdb
+
+                ipdb.set_trace()
+
             episode_data = {k: np.array(data_[k]) for k in data_}
             yield episode_data
             data_ = collections.defaultdict(list)
 
-        episode_step += 1
-
-
-# def sequence_dataset(env, preprocess_fn):
-#     """
-#     Returns an iterator through trajectories.
-#     Args:
-#         env: An OfflineEnv object.
-#         dataset: An optional dataset to pass in for processing. If None,
-#             the dataset will default to env.get_dataset()
-#         **kwargs: Arguments to pass to env.get_dataset().
-#     Returns:
-#         An iterator through dictionaries with keys:
-#             observations
-#             actions
-#             rewards
-#             terminals
-#     """
-#     if type(env) != str:
-#         envname = env.name
-#     else:
-#         envname = env
-#     import time
-
-#     start = time.time()
-#     dataset = get_dataset(env)
-#     end = time.time()
-#     dataset = preprocess_fn(dataset)
-
-#     N = dataset["rewards"].shape[0]
-#     print(f"Number of episodes: {N}")
-#     data_ = collections.defaultdict(list)
-
-#     # The newer version of the dataset adds an explicit
-#     # timeouts field. Keep old method for backwards compatability.
-#     use_timeouts = "timeouts" in dataset
-#     keys = [k for k in dataset.keys() if "metadata" not in k]
-#     episode_step = 0
-#     for i in range(N):
-#         done_bool = bool(dataset["terminals"][i])
-#         final_timestep = (
-#             dataset["timeouts"][i] if use_timeouts else episode_step == env._max_episode_steps - 1
-#         )
-
-#         for k in keys:
-#             if k == "infos":
-#                 for key in dataset["infos"].keys():
-#                     data_[f"infos/{key}"].append(dataset["infos"][key][i])
-#             else:
-#                 data_[k].append(dataset[k][i])
-#         if i % 10000 == 0:
-#             print(f"Episode {i}/{N}")
-#         if done_bool or final_timestep:
-#             episode_step = 0
-#             yield {k: np.array(data_[k]) for k in data_}
-#             data_ = collections.defaultdict(list)
-
-#         episode_step += 1
-
+        if final_timestep:
+            episode_step = 0
+        else:
+            episode_step += 1
 
 # -----------------------------------------------------------------------------#
 # -------------------------------- maze2d fixes -------------------------------#

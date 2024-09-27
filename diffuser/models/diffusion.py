@@ -1,11 +1,14 @@
 from collections import namedtuple
 from typing import Callable
 import numpy as np
+
+# from scripts/renderer import Renderer
 import torch
 from torch import nn
 import time
 
 import diffuser.utils as utils
+
 from .helpers import (
     cosine_beta_schedule,
     extract,
@@ -29,11 +32,23 @@ def default_sample_fn(model, x, cond, t):
     return model_mean + model_std * noise, values
 
 
-def sort_by_values(x, values):
-    inds = torch.argsort(values, descending=False)
+def sort_by_values(x, values, v_dict, select):
+
+    assert x.size()[0] == values.size()[0]
+    if select == "min":
+        print("using min")
+        inds = torch.argsort(values, descending=False)  # False -> picks the minimum True->Maximum
+    elif select == "max":
+        inds = torch.argsort(values, descending=True)  # False -> picks the minimum True->Maximum
+    else:
+        raise ValueError("optim not defined (please input either min or max)")
+
+    for j, (key, val) in enumerate(v_dict.items()):
+        v_dict[key] = val[inds]
     x = x[inds]
     values = values[inds]
-    return x, values
+
+    return x, values, v_dict
 
 
 def make_timesteps(batch_size, i, device):
@@ -89,16 +104,13 @@ class GaussianDiffusion(nn.Module):
 
         ## log calculation clipped because the posterior variance
         ## is 0 at the beginning of the diffusion chain
-        self.register_buffer(
-            "posterior_log_variance_clipped", torch.log(torch.clamp(posterior_variance, min=1e-20))
-        )
-        self.register_buffer(
-            "posterior_mean_coef1", betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod)
-        )
+        self.register_buffer("posterior_log_variance_clipped", torch.log(torch.clamp(posterior_variance, min=1e-20)))
+        self.register_buffer("posterior_mean_coef1", betas * np.sqrt(alphas_cumprod_prev) / (1.0 - alphas_cumprod))
         self.register_buffer(
             "posterior_mean_coef2",
             (1.0 - alphas_cumprod_prev) * np.sqrt(alphas) / (1.0 - alphas_cumprod),
         )
+        self.val_selection = "min"
 
         ## get loss coefficients and initialize objective
         loss_weights = self.get_loss_weights(action_weight, loss_discount, loss_weights)
@@ -186,9 +198,7 @@ class GaussianDiffusion(nn.Module):
         else:
             assert RuntimeError()
 
-        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(
-            x_start=x_recon, x_t=x, t=t
-        )
+        model_mean, posterior_variance, posterior_log_variance = self.q_posterior(x_start=x_recon, x_t=x, t=t)
         return model_mean, posterior_variance, posterior_log_variance
 
     @torch.no_grad()
@@ -217,7 +227,7 @@ class GaussianDiffusion(nn.Module):
         shape: tuple,
         cond: dict,
         verbose: bool = True,
-        return_diffusion: bool = False,
+        return_diffusion: bool = True,
         sample_fn: Callable = default_sample_fn,
         **sample_kwargs
     ) -> namedtuple:
@@ -245,18 +255,27 @@ class GaussianDiffusion(nn.Module):
         for i in reversed(range(0, self.n_timesteps)):
 
             t = make_timesteps(batch_size, i, device)
-            x, values, values_measured  = sample_fn(self, x, cond, t, **sample_kwargs)
+            x, values_dict, values_measured = sample_fn(self, x, cond, t, **sample_kwargs)
             x = apply_conditioning(x, cond, self.action_dim)
-            progress.update({"t": i, "vmin": values.min().item(), "vmax": values.max().item()})
+            val2sort = torch.zeros((len(values_dict), len(values_measured)))
+            for j, (key, val) in enumerate(values_dict.items()):
+                val2sort[j, :] = val.cpu()
+
+            val2sort = val2sort.sum(axis=0)
+            progress.update({"t": i, "vmin": val2sort.min().item(), "vmax": val2sort.max().item()})
 
             if return_diffusion:
                 diffusion.append(x)
 
+        ###################################### CHECK THIS PART, DOES NOT SEEM TO BE CORRECT
+        # #################################### values_dict is not sorted like x #########################################
         progress.stamp()
-        x, values = sort_by_values(x, values)
+        x, values, values_dict = sort_by_values(x, val2sort, values_dict, self.val_selection)
+
+        print("Trajectory cost: ", values[0])
         if return_diffusion:
             diffusion = torch.stack(diffusion, dim=1)
-        return Sample(x, values, values_measured, diffusion)
+        return Sample(x, values_dict, values_measured, diffusion)
 
     @torch.no_grad()
     def conditional_sample(self, cond, horizon=None, **sample_kwargs):
@@ -289,7 +308,7 @@ class GaussianDiffusion(nn.Module):
         x_noisy = self.q_sample(x_start=x_start, t=t, noise=noise)
         x_noisy = apply_conditioning(x_noisy, cond, self.action_dim)
 
-        x_recon = self.model(x_noisy, cond, t)
+        x_recon = self.model(x_noisy, cond, t)  ## TemporalUnet
         x_recon = apply_conditioning(x_recon, cond, self.action_dim)
         assert noise.shape == x_recon.shape
 

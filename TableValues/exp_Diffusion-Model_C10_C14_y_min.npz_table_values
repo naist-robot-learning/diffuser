@@ -1,0 +1,52 @@
+File name: exp_Diffusion-Model_C10_C14_y_min.npz
+full batch time max: 8.27286171913147
+full batch time min: (7.104633092880249
+full batch time mean: 7.424513998031617
+full batch time std: 0.19479679234803624
+time mean and std: (7.425 +/- 0.195)
+min,max: (7.105, 8.273)
+Avg rm_x overall exp: 0.175521582365036
+Avg_rm_y overall exp: 0.10193563252687454
+Avg_rm_z overall exp: 1.4591050148010254
+Std rm_x overall exp: 0.08545975387096405
+Std_rm_y overall exp: 0.04510606825351715
+Std_rm_z overall exp: 0.6956512331962585
+Avg RI_x, RI_y, RI_z
+rm_x mean and std: (0.176 +/- 0.085)
+rm_y mean and std: (0.102 +/- 0.045)
+rm_z_mean and std: (1.459 +/- 0.696)
+Max RM_x overall: 0.9207737445831299
+Min RM_x overall: 0.06779374182224274
+Max RM_y overall: 0.2337421327829361
+Min RM_y overall: 0.06608273833990097
+Max RM_z overall: 3.7595691680908203
+Min RM_z overall: 0.19511692225933075
+min,max rm_x, rm_y, rm_z
+(0.068,0.921)
+(0.066,0.234)
+(0.195,3.760)
+full batch rm max value; 3.7595691680908203
+full batch rm min value: 0.06608273833990097
+full batch rm mean: 0.5788540840148926
+full batch rm std: 0.7434718012809753
+Batch cumulative rm max (x,y,z): [ 15.38    5.317 132.521]
+Batch cumulative rm min (x,y,z): [ 6.331  4.445 26.654]
+Batch cumulative rm mean (x,y,z): [ 8.425  4.893 70.037]
+Batch cumulative rm std (x,y,z): [ 1.478  0.181 24.758]
+cum rm mean +/- std
+(8.425 +/- 1.478)
+(4.893 +/- 0.181)
+(70.037 +/- 24.758)
+min,max cum rm_x, rm_y, rm_z
+(6.331, 15.380)
+(4.445, 5.317)
+(26.654, 132.521)
+Batch cumulative rm mass max overall: 132.52127075195312
+Batch cumulative rm mass min overall: 4.445394992828369
+Batch cumulative rm mass mean overall: 27.784996032714844
+Batch cumulative rm mass std overall: 33.16248321533203
+Batch path length max: 0.6714633125811815
+Batch path length min: 0.4787880298681557
+Batch path length mean: 0.5392614756221883
+Batch path length std: 0.04321438789512846
+path_length: (0.5392614756221883 +/- 0.04321438789512846)
